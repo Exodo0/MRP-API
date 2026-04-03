@@ -1,6 +1,7 @@
 const { client } = require("../discord/client");
 const { ROLES, GUILD_ID } = require("../config");
 const Joi = require("joi");
+const logger = require("../logger");
 
 const schema = Joi.object({
   userId: Joi.string().required(),
@@ -13,51 +14,40 @@ const schema = Joi.object({
 const updateLicense = async (req, res) => {
   const { error, value } = schema.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
-  const { userId, license, action } = value;
 
+  const { userId, license, action } = value;
   const roleId = ROLES[license];
+
   if (!roleId) {
-    return res
-      .status(400)
-      .json({ error: `License role "${license}" not found in configuration.` });
+    return res.status(400).json({ error: `License role "${license}" not found in configuration.` });
   }
 
   try {
     const guild = await client.guilds.fetch(GUILD_ID);
     if (!guild) {
-      return res
-        .status(500)
-        .json({ error: "Guild not found (Bot not in server?)." });
+      return res.status(500).json({ error: "Guild not found (Bot not in server?)." });
     }
 
     const member = await guild.members.fetch(userId);
     if (!member) {
-      return res
-        .status(404)
-        .json({ error: "User not found in the Discord server." });
+      return res.status(404).json({ error: "User not found in the Discord server." });
     }
 
     if (action === "add") {
       await member.roles.add(roleId);
-      return res
-        .status(200)
-        .json({ message: `Role ${license} added to user ${userId}.` });
+      logger.info({ userId, license, action, owner: req.apiKeyOwner }, "License role updated");
+      return res.status(200).json({ message: `Role ${license} added to user ${userId}.` });
     } else {
       await member.roles.remove(roleId);
-      return res
-        .status(200)
-        .json({ message: `Role ${license} removed from user ${userId}.` });
+      logger.info({ userId, license, action, owner: req.apiKeyOwner }, "License role updated");
+      return res.status(200).json({ message: `Role ${license} removed from user ${userId}.` });
     }
-  } catch (error) {
-    console.error("Error updating license:", error);
-    if (error.code === 10007) {
-      return res
-        .status(404)
-        .json({ error: "User not found in the Discord server." });
+  } catch (err) {
+    if (err.code === 10007) {
+      return res.status(404).json({ error: "User not found in the Discord server." });
     }
-    return res
-      .status(500)
-      .json({ error: "Internal Server Error processing Discord request." });
+    logger.error({ err, userId, license, action }, "Error updating license role");
+    return res.status(500).json({ error: "Internal Server Error processing Discord request." });
   }
 };
 

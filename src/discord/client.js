@@ -1,23 +1,25 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 require("dotenv").config();
+const logger = require("../logger");
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
 client.once("clientReady", () => {
-  console.log(`Discord Bot logged in as ${client.user.tag}`);
+  logger.info({ tag: client.user.tag }, "Discord Bot ready");
 });
 
 const startDiscordBot = async () => {
+  if (!process.env.DISCORD_TOKEN) {
+    logger.warn("DISCORD_TOKEN not set — bot will not start");
+    return;
+  }
   try {
-    if (!process.env.DISCORD_TOKEN) {
-      console.warn("DISCORD_TOKEN is missing in .env");
-      return;
-    }
     await client.login(process.env.DISCORD_TOKEN);
-  } catch (error) {
-    console.error("Failed to login to Discord:", error);
+  } catch (err) {
+    logger.error({ err }, "Failed to login to Discord");
+    throw err; // propaga el error para que index.js lo capture
   }
 };
 

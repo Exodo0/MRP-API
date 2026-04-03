@@ -1,4 +1,6 @@
 const { connectDB, mongoose } = require("../src/db");
+const dotenv = require("dotenv");
+dotenv.config();
 const ApiKey = require("../src/models/ApiKey");
 const crypto = require("crypto");
 

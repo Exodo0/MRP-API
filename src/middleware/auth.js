@@ -1,13 +1,12 @@
 const { connectDB } = require("../db");
 const ApiKey = require("../models/ApiKey");
+const logger = require("../logger");
 
 const apiKeyAuth = async (req, res, next) => {
   const apiKey = req.header("x-api-key");
 
   if (!apiKey) {
-    return res
-      .status(401)
-      .json({ error: "Access denied. No API Key provided." });
+    return res.status(401).json({ error: "Access denied. No API Key provided." });
   }
 
   try {
@@ -15,14 +14,14 @@ const apiKeyAuth = async (req, res, next) => {
     const validKey = await ApiKey.findOne({ key: apiKey }).lean();
 
     if (!validKey || !validKey.isActive) {
+      logger.warn({ ip: req.ip }, "Rejected invalid or inactive API key");
       return res.status(403).json({ error: "Invalid or inactive API Key." });
     }
 
-    // Attach key info to request if needed
     req.apiKeyOwner = validKey.owner;
     next();
-  } catch (error) {
-    console.error("Auth Middleware Error:", error);
+  } catch (err) {
+    logger.error({ err }, "Auth middleware error");
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
