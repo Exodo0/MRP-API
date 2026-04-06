@@ -15,6 +15,14 @@ function ensureStorageEnv() {
   return { url, key, bucket: SUPABASE_BUCKET() };
 }
 
+function normalizeCategoryName(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 function sanitizePathSegment(value) {
   return String(value || "")
     .normalize("NFD")
@@ -24,11 +32,25 @@ function sanitizePathSegment(value) {
     .toLowerCase() || "general";
 }
 
+function resolveCategoryFolder(categoryName) {
+  const normalized = normalizeCategoryName(categoryName);
+
+  if (["house", "houses", "vivienda", "viviendas"].includes(normalized)) {
+    return "Houses";
+  }
+
+  if (["vehicle", "vehicles", "vehiculo", "vehiculos"].includes(normalized)) {
+    return "Vehicles";
+  }
+
+  return sanitizePathSegment(categoryName);
+}
+
 async function uploadMarketImage({ categoryName, buffer, contentType = "image/webp" }) {
   const { url, key, bucket } = ensureStorageEnv();
-  const safeCategory = sanitizePathSegment(categoryName);
+  const folderName = resolveCategoryFolder(categoryName);
   const fileName = `${Date.now()}.webp`;
-  const objectPath = `${safeCategory}/${fileName}`;
+  const objectPath = `${folderName}/${fileName}`;
   const uploadUrl = `${url}/storage/v1/object/${bucket}/${objectPath}`;
 
   const response = await fetch(uploadUrl, {
