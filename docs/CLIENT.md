@@ -141,3 +141,135 @@ res = requests.post(
 
 print(res.status_code, res.json())
 ```
+
+
+---
+
+## Market — Categorías & Items
+
+Todos los endpoints de market requieren `x-api-key`.
+Base: `https://mrp-api-odgwba.fly.dev/v1/market`
+
+---
+
+### Categorías
+
+#### GET `/v1/market/categorias`
+Lista categorías del guild.
+
+Query params opcionales:
+- `activa=true|false` — filtrar por estado
+
+Response `200`:
+```json
+[
+  { "_id": "...", "Nombre": "Armas", "Emoji": "🔫", "Orden": 0, "Activa": true, ... }
+]
+```
+
+---
+
+#### POST `/v1/market/categorias`
+Crea una nueva categoría.
+
+Body:
+```json
+{
+  "Nombre": "Armas",
+  "Descripcion": "Armamento del mercado negro",
+  "Emoji": "🔫",
+  "Orden": 0
+}
+```
+`Orden` es opcional (se pone al final si se omite).
+
+Response `201`: el documento creado.
+
+---
+
+#### PUT `/v1/market/categorias/:id`
+Actualiza campos de una categoría.
+
+Body (mínimo 1 campo):
+```json
+{ "Nombre": "Armas Pesadas", "Emoji": "💣" }
+```
+
+---
+
+#### PATCH `/v1/market/categorias/:id/toggle`
+Activa / desactiva una categoría.
+
+Response `200`: documento actualizado con el nuevo valor de `Activa`.
+
+---
+
+#### DELETE `/v1/market/categorias/:id`
+Elimina la categoría **y todos sus items**.
+
+Response `200`:
+```json
+{ "ok": true, "deletedItems": 4 }
+```
+
+---
+
+#### POST `/v1/market/categorias/reorder`
+Reordena categorías. Envía el array de IDs en el nuevo orden.
+
+Body:
+```json
+["id1", "id2", "id3"]
+```
+
+---
+
+### Items
+
+#### GET `/v1/market/items`
+Lista items del guild.
+
+Query params opcionales:
+- `categoriaId=<ObjectId>` — filtrar por categoría
+- `activo=true|false` — filtrar por estado
+
+---
+
+#### POST `/v1/market/items`
+Crea un nuevo item.
+
+Body:
+```json
+{
+  "CategoriaId": "<ObjectId de la categoria>",
+  "Nombre": "AK-47",
+  "Descripcion": "Fusil de asalto",
+  "Precio": 15000,
+  "Descuento": 10,
+  "Stock": -1,
+  "LimitePorUsuario": 1,
+  "RolId": null,
+  "ImagenURL": "https://cdn.supabase.../ak47.webp"
+}
+```
+
+- `Stock: -1` = infinito
+- `Descuento`: 0–100 (porcentaje)
+- `ImagenURL`: la URL pública de Supabase (la sube la app Electron antes de llamar este endpoint)
+
+---
+
+#### PUT `/v1/market/items/:id`
+Actualiza campos de un item. Si cambia `CategoriaId`, se actualiza `CategoriaNombre` automáticamente.
+
+---
+
+#### PATCH `/v1/market/items/:id/toggle`
+Activa / desactiva un item.
+
+---
+
+#### DELETE `/v1/market/items/:id`
+Elimina un item.
+
+Response `200`: `{ "ok": true }`

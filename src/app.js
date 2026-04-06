@@ -3,7 +3,8 @@ const bodyParser = require("body-parser");
 const helmet = require("helmet");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
-const safRoutes = require("./routes/v1/saf");
+const safRoutes    = require("./routes/v1/saf");
+const marketRoutes = require("./routes/v1/market");
 const apiKeyAuth = require("./middleware/auth");
 const logger = require("./logger");
 
@@ -25,7 +26,8 @@ app.get("/", (req, res) => {
   res.send("MXRP API is running.");
 });
 
-app.use("/v1/saf", apiKeyAuth, safRoutes);
+app.use("/v1/saf",    apiKeyAuth, safRoutes);
+app.use("/v1/market", apiKeyAuth, marketRoutes);
 
 // Global error handler — captura errores que lleguen con next(err)
 app.use((err, req, res, next) => {
