@@ -4,12 +4,25 @@ const Categoria  = require("../models/Categoria");
 const Item       = require("../models/Item");
 const logger     = require("../logger");
 
-const GUILD_ID = process.env.GUILD_ID;
+// Lazy — se lee en cada request para no quedar fijo al momento del require().
+function getGuildId() {
+  const id = process.env.GUILD_ID;
+  if (!id) throw new Error("GUILD_ID env var is not set — add it with: fly secrets set GUILD_ID=...");
+  return id;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isValidObjectId(id) {
   return mongoose.Types.ObjectId.isValid(id);
+}
+
+function handleEnvError(err, res) {
+  if (err.message?.includes("GUILD_ID env var")) {
+    logger.error(err.message);
+    return res.status(503).json({ error: "Server misconfiguration: GUILD_ID not set" });
+  }
+  return null; // no era un error de env, el caller debe hacer su propio manejo
 }
 
 // ─── Schemas de validación ────────────────────────────────────────────────────
@@ -68,6 +81,7 @@ const reorderSchema = Joi.array()
 /** GET /v1/market/categorias */
 const listCategorias = async (req, res) => {
   try {
+    const GUILD_ID = getGuildId();
     const { activa } = req.query;
     const query = { GuildId: GUILD_ID };
     if (activa !== undefined) query.Activa = activa === "true";
@@ -75,6 +89,7 @@ const listCategorias = async (req, res) => {
     const cats = await Categoria.find(query).sort({ Orden: 1 }).lean();
     return res.json(cats);
   } catch (err) {
+    if (handleEnvError(err, res)) return;
     logger.error({ err }, "listCategorias error");
     return res.status(500).json({ error: "Internal Server Error" });
   }
@@ -86,7 +101,8 @@ const createCategoria = async (req, res) => {
   if (error) return res.status(400).json({ error: error.message });
 
   try {
-    // Si no se pasó Orden, ponerla al final
+    const GUILD_ID = getGuildId();
+
     if (value.Orden === undefined) {
       const total = await Categoria.countDocuments({ GuildId: GUILD_ID });
       value.Orden = total;
@@ -96,6 +112,7 @@ const createCategoria = async (req, res) => {
     logger.info({ id: cat._id, nombre: cat.Nombre }, "Categoria created");
     return res.status(201).json(cat.toObject());
   } catch (err) {
+    if (handleEnvError(err, res)) return;
     logger.error({ err }, "createCategoria error");
     return res.status(500).json({ error: "Internal Server Error" });
   }
@@ -110,6 +127,7 @@ const updateCategoria = async (req, res) => {
   if (error) return res.status(400).json({ error: error.message });
 
   try {
+    const GUILD_ID = getGuildId();
     const cat = await Categoria.findOneAndUpdate(
       { _id: id, GuildId: GUILD_ID },
       { $set: value },
@@ -120,6 +138,7 @@ const updateCategoria = async (req, res) => {
     logger.info({ id }, "Categoria updated");
     return res.json(cat);
   } catch (err) {
+    if (handleEnvError(err, res)) return;
     logger.error({ err }, "updateCategoria error");
     return res.status(500).json({ error: "Internal Server Error" });
   }
@@ -131,6 +150,7 @@ const toggleCategoria = async (req, res) => {
   if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid categoria ID" });
 
   try {
+    const GUILD_ID = getGuildId();
     const cat = await Categoria.findOne({ _id: id, GuildId: GUILD_ID }).lean();
     if (!cat) return res.status(404).json({ error: "Categoria not found" });
 
@@ -143,6 +163,7 @@ const toggleCategoria = async (req, res) => {
     logger.info({ id, activa: updated.Activa }, "Categoria toggled");
     return res.json(updated);
   } catch (err) {
+    if (handleEnvError(err, res)) return;
     logger.error({ err }, "toggleCategoria error");
     return res.status(500).json({ error: "Internal Server Error" });
   }
@@ -154,6 +175,7 @@ const deleteCategoria = async (req, res) => {
   if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid categoria ID" });
 
   try {
+    const GUILD_ID = getGuildId();
     const cat = await Categoria.findOne({ _id: id, GuildId: GUILD_ID }).lean();
     if (!cat) return res.status(404).json({ error: "Categoria not found" });
 
@@ -164,17 +186,19 @@ const deleteCategoria = async (req, res) => {
     logger.info({ id, deletedItems }, "Categoria deleted");
     return res.json({ ok: true, deletedItems });
   } catch (err) {
+    if (handleEnvError(err, res)) return;
     logger.error({ err }, "deleteCategoria error");
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
-/** POST /v1/market/categorias/reorder — body: ["id1","id2","id3",...] */
+/** POST /v1/market/categorias/reorder */
 const reorderCategorias = async (req, res) => {
   const { error, value: orderedIds } = reorderSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
 
   try {
+    const GUILD_ID = getGuildId();
     const updates = orderedIds.map((id, idx) => {
       if (!isValidObjectId(id)) throw new Error(`Invalid ID: ${id}`);
       return Categoria.findOneAndUpdate(
@@ -187,6 +211,7 @@ const reorderCategorias = async (req, res) => {
     logger.info({ count: orderedIds.length }, "Categorias reordered");
     return res.json({ ok: true });
   } catch (err) {
+    if (handleEnvError(err, res)) return;
     if (err.message?.startsWith("Invalid ID")) {
       return res.status(400).json({ error: err.message });
     }
@@ -202,6 +227,7 @@ const reorderCategorias = async (req, res) => {
 /** GET /v1/market/items?categoriaId=&activo= */
 const listItems = async (req, res) => {
   try {
+    const GUILD_ID = getGuildId();
     const query = { GuildId: GUILD_ID };
     if (req.query.categoriaId) {
       if (!isValidObjectId(req.query.categoriaId)) {
@@ -216,6 +242,7 @@ const listItems = async (req, res) => {
     const items = await Item.find(query).sort({ CategoriaNombre: 1, Nombre: 1 }).lean();
     return res.json(items);
   } catch (err) {
+    if (handleEnvError(err, res)) return;
     logger.error({ err }, "listItems error");
     return res.status(500).json({ error: "Internal Server Error" });
   }
@@ -231,12 +258,13 @@ const createItem = async (req, res) => {
   }
 
   try {
+    const GUILD_ID = getGuildId();
     const cat = await Categoria.findOne({ _id: value.CategoriaId, GuildId: GUILD_ID }).lean();
     if (!cat) return res.status(404).json({ error: "Categoria not found" });
 
     const item = await Item.create({
       ...value,
-      GuildId:        GUILD_ID,
+      GuildId:         GUILD_ID,
       CategoriaNombre: cat.Nombre,
       RolId:           value.RolId || null,
       ImagenURL:       value.ImagenURL || null,
@@ -245,6 +273,7 @@ const createItem = async (req, res) => {
     logger.info({ id: item._id, nombre: item.Nombre }, "Item created");
     return res.status(201).json(item.toObject());
   } catch (err) {
+    if (handleEnvError(err, res)) return;
     logger.error({ err }, "createItem error");
     return res.status(500).json({ error: "Internal Server Error" });
   }
@@ -259,10 +288,10 @@ const updateItem = async (req, res) => {
   if (error) return res.status(400).json({ error: error.message });
 
   try {
+    const GUILD_ID = getGuildId();
     const existing = await Item.findOne({ _id: id, GuildId: GUILD_ID }).lean();
     if (!existing) return res.status(404).json({ error: "Item not found" });
 
-    // Si cambia de categoría, actualizar CategoriaNombre
     if (value.CategoriaId && value.CategoriaId !== existing.CategoriaId?.toString()) {
       if (!isValidObjectId(value.CategoriaId)) {
         return res.status(400).json({ error: "Invalid CategoriaId" });
@@ -281,6 +310,7 @@ const updateItem = async (req, res) => {
     logger.info({ id }, "Item updated");
     return res.json(updated);
   } catch (err) {
+    if (handleEnvError(err, res)) return;
     logger.error({ err }, "updateItem error");
     return res.status(500).json({ error: "Internal Server Error" });
   }
@@ -292,6 +322,7 @@ const toggleItem = async (req, res) => {
   if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid item ID" });
 
   try {
+    const GUILD_ID = getGuildId();
     const item = await Item.findOne({ _id: id, GuildId: GUILD_ID }).lean();
     if (!item) return res.status(404).json({ error: "Item not found" });
 
@@ -304,6 +335,7 @@ const toggleItem = async (req, res) => {
     logger.info({ id, activo: updated.Activo }, "Item toggled");
     return res.json(updated);
   } catch (err) {
+    if (handleEnvError(err, res)) return;
     logger.error({ err }, "toggleItem error");
     return res.status(500).json({ error: "Internal Server Error" });
   }
@@ -315,6 +347,7 @@ const deleteItem = async (req, res) => {
   if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid item ID" });
 
   try {
+    const GUILD_ID = getGuildId();
     const item = await Item.findOne({ _id: id, GuildId: GUILD_ID }).lean();
     if (!item) return res.status(404).json({ error: "Item not found" });
 
@@ -322,20 +355,19 @@ const deleteItem = async (req, res) => {
     logger.info({ id }, "Item deleted");
     return res.json({ ok: true });
   } catch (err) {
+    if (handleEnvError(err, res)) return;
     logger.error({ err }, "deleteItem error");
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
 module.exports = {
-  // Categorías
   listCategorias,
   createCategoria,
   updateCategoria,
   toggleCategoria,
   deleteCategoria,
   reorderCategorias,
-  // Items
   listItems,
   createItem,
   updateItem,
