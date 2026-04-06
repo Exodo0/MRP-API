@@ -1,11 +1,13 @@
 const dotenv = require("dotenv");
+const dns = require("dns");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
 dotenv.config();
 
 const logger = require("./src/logger");
 const app = require("./src/app");
 const { startDiscordBot } = require("./src/discord/client");
-const { connectDB }   = require("./src/db");
+const { connectDB } = require("./src/db");
 require("./src/dbWebConn"); // inicia la conexión MXRP-Web al arrancar
 
 const PORT = process.env.PORT || 3000;
