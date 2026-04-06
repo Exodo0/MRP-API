@@ -1,17 +1,15 @@
-const Joi        = require("joi");
+﻿const Joi        = require("joi");
 const mongoose   = require("mongoose");
 const Categoria  = require("../models/Categoria");
 const Item       = require("../models/Item");
 const logger     = require("../logger");
+const { uploadMarketImage } = require("../services/marketImageService");
 
-// Lazy — se lee en cada request para no quedar fijo al momento del require().
 function getGuildId() {
   const id = process.env.GUILD_ID;
-  if (!id) throw new Error("GUILD_ID env var is not set — add it with: fly secrets set GUILD_ID=...");
+  if (!id) throw new Error("GUILD_ID env var is not set - add it with: fly secrets set GUILD_ID=...");
   return id;
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isValidObjectId(id) {
   return mongoose.Types.ObjectId.isValid(id);
@@ -22,51 +20,49 @@ function handleEnvError(err, res) {
     logger.error(err.message);
     return res.status(503).json({ error: "Server misconfiguration: GUILD_ID not set" });
   }
-  return null; // no era un error de env, el caller debe hacer su propio manejo
+  return null;
 }
 
-// ─── Schemas de validación ────────────────────────────────────────────────────
-
 const categoriaCreateSchema = Joi.object({
-  Nombre:      Joi.string().trim().max(64).required(),
+  Nombre: Joi.string().trim().max(64).required(),
   Descripcion: Joi.string().trim().max(256).allow("").default(""),
-  Emoji:       Joi.string().trim().max(8).default("🛒"),
-  Orden:       Joi.number().integer().min(0).optional(),
-  Activa:      Joi.boolean().default(true),
+  Emoji: Joi.string().trim().max(8).default("🛒"),
+  Orden: Joi.number().integer().min(0).optional(),
+  Activa: Joi.boolean().default(true),
 });
 
 const categoriaUpdateSchema = Joi.object({
-  Nombre:      Joi.string().trim().max(64).optional(),
+  Nombre: Joi.string().trim().max(64).optional(),
   Descripcion: Joi.string().trim().max(256).allow("").optional(),
-  Emoji:       Joi.string().trim().max(8).optional(),
-  Orden:       Joi.number().integer().min(0).optional(),
-  Activa:      Joi.boolean().optional(),
+  Emoji: Joi.string().trim().max(8).optional(),
+  Orden: Joi.number().integer().min(0).optional(),
+  Activa: Joi.boolean().optional(),
 }).min(1);
 
 const itemCreateSchema = Joi.object({
-  CategoriaId:      Joi.string().required(),
-  Nombre:           Joi.string().trim().max(128).required(),
-  Descripcion:      Joi.string().trim().max(1024).allow("").default(""),
-  Precio:           Joi.number().min(0).required(),
-  Descuento:        Joi.number().min(0).max(100).default(0),
-  Stock:            Joi.number().integer().min(-1).default(-1),
+  CategoriaId: Joi.string().required(),
+  Nombre: Joi.string().trim().max(128).required(),
+  Descripcion: Joi.string().trim().max(1024).allow("").default(""),
+  Precio: Joi.number().min(0).required(),
+  Descuento: Joi.number().min(0).max(100).default(0),
+  Stock: Joi.number().integer().min(-1).default(-1),
   LimitePorUsuario: Joi.number().integer().min(0).default(0),
-  RolId:            Joi.string().allow(null, "").default(null),
-  ImagenURL:        Joi.string().uri().allow(null, "").default(null),
-  Activo:           Joi.boolean().default(true),
+  RolId: Joi.string().allow(null, "").default(null),
+  ImagenURL: Joi.string().uri().allow(null, "").default(null),
+  Activo: Joi.boolean().default(true),
 });
 
 const itemUpdateSchema = Joi.object({
-  CategoriaId:      Joi.string().optional(),
-  Nombre:           Joi.string().trim().max(128).optional(),
-  Descripcion:      Joi.string().trim().max(1024).allow("").optional(),
-  Precio:           Joi.number().min(0).optional(),
-  Descuento:        Joi.number().min(0).max(100).optional(),
-  Stock:            Joi.number().integer().min(-1).optional(),
+  CategoriaId: Joi.string().optional(),
+  Nombre: Joi.string().trim().max(128).optional(),
+  Descripcion: Joi.string().trim().max(1024).allow("").optional(),
+  Precio: Joi.number().min(0).optional(),
+  Descuento: Joi.number().min(0).max(100).optional(),
+  Stock: Joi.number().integer().min(-1).optional(),
   LimitePorUsuario: Joi.number().integer().min(0).optional(),
-  RolId:            Joi.string().allow(null, "").optional(),
-  ImagenURL:        Joi.string().uri().allow(null, "").optional(),
-  Activo:           Joi.boolean().optional(),
+  RolId: Joi.string().allow(null, "").optional(),
+  ImagenURL: Joi.string().uri().allow(null, "").optional(),
+  Activo: Joi.boolean().optional(),
 }).min(1);
 
 const reorderSchema = Joi.array()
@@ -74,11 +70,10 @@ const reorderSchema = Joi.array()
   .min(1)
   .required();
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CATEGORÍAS
-// ─────────────────────────────────────────────────────────────────────────────
+const uploadImageQuerySchema = Joi.object({
+  categoriaId: Joi.string().required(),
+});
 
-/** GET /v1/market/categorias */
 const listCategorias = async (req, res) => {
   try {
     const GUILD_ID = getGuildId();
@@ -95,7 +90,6 @@ const listCategorias = async (req, res) => {
   }
 };
 
-/** POST /v1/market/categorias */
 const createCategoria = async (req, res) => {
   const { error, value } = categoriaCreateSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
@@ -118,7 +112,6 @@ const createCategoria = async (req, res) => {
   }
 };
 
-/** PUT /v1/market/categorias/:id */
 const updateCategoria = async (req, res) => {
   const { id } = req.params;
   if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid categoria ID" });
@@ -144,7 +137,6 @@ const updateCategoria = async (req, res) => {
   }
 };
 
-/** PATCH /v1/market/categorias/:id/toggle */
 const toggleCategoria = async (req, res) => {
   const { id } = req.params;
   if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid categoria ID" });
@@ -169,7 +161,6 @@ const toggleCategoria = async (req, res) => {
   }
 };
 
-/** DELETE /v1/market/categorias/:id */
 const deleteCategoria = async (req, res) => {
   const { id } = req.params;
   if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid categoria ID" });
@@ -192,7 +183,6 @@ const deleteCategoria = async (req, res) => {
   }
 };
 
-/** POST /v1/market/categorias/reorder */
 const reorderCategorias = async (req, res) => {
   const { error, value: orderedIds } = reorderSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
@@ -220,11 +210,6 @@ const reorderCategorias = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ITEMS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** GET /v1/market/items?categoriaId=&activo= */
 const listItems = async (req, res) => {
   try {
     const GUILD_ID = getGuildId();
@@ -248,7 +233,42 @@ const listItems = async (req, res) => {
   }
 };
 
-/** POST /v1/market/items */
+const uploadItemImage = async (req, res) => {
+  const { error, value } = uploadImageQuerySchema.validate(req.query);
+  if (error) return res.status(400).json({ error: error.message });
+
+  if (!isValidObjectId(value.categoriaId)) {
+    return res.status(400).json({ error: "Invalid CategoriaId" });
+  }
+
+  if (!Buffer.isBuffer(req.body) || !req.body.length) {
+    return res.status(400).json({ error: "Image body is required" });
+  }
+
+  try {
+    const GUILD_ID = getGuildId();
+    const cat = await Categoria.findOne({ _id: value.categoriaId, GuildId: GUILD_ID }).lean();
+    if (!cat) return res.status(404).json({ error: "Categoria not found" });
+
+    const uploaded = await uploadMarketImage({
+      categoryName: cat.Nombre,
+      buffer: req.body,
+      contentType: req.headers["content-type"] || "image/webp",
+    });
+
+    logger.info({ categoriaId: value.categoriaId, path: uploaded.path }, "Item image uploaded");
+    return res.status(201).json(uploaded);
+  } catch (err) {
+    if (handleEnvError(err, res)) return;
+    if (err.message?.includes("Supabase storage env vars")) {
+      logger.error({ err }, "uploadItemImage misconfiguration");
+      return res.status(503).json({ error: "Server misconfiguration: storage not set" });
+    }
+    logger.error({ err }, "uploadItemImage error");
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 const createItem = async (req, res) => {
   const { error, value } = itemCreateSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
@@ -264,10 +284,10 @@ const createItem = async (req, res) => {
 
     const item = await Item.create({
       ...value,
-      GuildId:         GUILD_ID,
+      GuildId: GUILD_ID,
       CategoriaNombre: cat.Nombre,
-      RolId:           value.RolId || null,
-      ImagenURL:       value.ImagenURL || null,
+      RolId: value.RolId || null,
+      ImagenURL: value.ImagenURL || null,
     });
 
     logger.info({ id: item._id, nombre: item.Nombre }, "Item created");
@@ -279,7 +299,6 @@ const createItem = async (req, res) => {
   }
 };
 
-/** PUT /v1/market/items/:id */
 const updateItem = async (req, res) => {
   const { id } = req.params;
   if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid item ID" });
@@ -316,7 +335,6 @@ const updateItem = async (req, res) => {
   }
 };
 
-/** PATCH /v1/market/items/:id/toggle */
 const toggleItem = async (req, res) => {
   const { id } = req.params;
   if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid item ID" });
@@ -341,7 +359,6 @@ const toggleItem = async (req, res) => {
   }
 };
 
-/** DELETE /v1/market/items/:id */
 const deleteItem = async (req, res) => {
   const { id } = req.params;
   if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid item ID" });
@@ -369,6 +386,7 @@ module.exports = {
   deleteCategoria,
   reorderCategorias,
   listItems,
+  uploadItemImage,
   createItem,
   updateItem,
   toggleItem,
