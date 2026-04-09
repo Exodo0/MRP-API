@@ -5,6 +5,8 @@ const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const safRoutes    = require("./routes/v1/saf");
 const marketRoutes = require("./routes/v1/market");
+const authRoutes   = require("./routes/v1/auth");
+const authRoutes   = require("./routes/v1/auth");
 const apiKeyAuth = require("./middleware/auth");
 const logger = require("./logger");
 
@@ -30,6 +32,7 @@ app.get("/", (req, res) => {
   res.send("MXRP API is running.");
 });
 
+app.use("/v1/auth",   authRoutes);           // público — sin x-api-key
 app.use("/v1/saf",    apiKeyAuth, safRoutes);
 app.use("/v1/market", apiKeyAuth, marketRoutes);
 
