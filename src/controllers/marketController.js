@@ -1,9 +1,11 @@
-﻿const Joi        = require("joi");
-const mongoose   = require("mongoose");
-const Categoria  = require("../models/Categoria");
-const Item       = require("../models/Item");
-const logger     = require("../logger");
+const Joi = require("joi");
+const mongoose = require("mongoose");
+const Categoria = require("../models/Categoria");
+const Item = require("../models/Item");
+const AuditLog = require("../models/AuditLog");
+const logger = require("../logger");
 const { uploadMarketImage } = require("../services/marketImageService");
+const { writeAuditLog } = require("../services/auditService");
 
 function getGuildId() {
   const id = process.env.GUILD_ID;
@@ -65,14 +67,38 @@ const itemUpdateSchema = Joi.object({
   Activo: Joi.boolean().optional(),
 }).min(1);
 
-const reorderSchema = Joi.array()
-  .items(Joi.string().required())
-  .min(1)
-  .required();
+const reorderSchema = Joi.array().items(Joi.string().required()).min(1).required();
 
 const uploadImageQuerySchema = Joi.object({
   categoriaId: Joi.string().required(),
 });
+
+const auditListSchema = Joi.object({
+  entityType: Joi.string().valid("categoria", "item").optional(),
+  entityId: Joi.string().optional(),
+  action: Joi.string().valid("create", "update", "delete", "toggle", "reorder").optional(),
+  limit: Joi.number().integer().min(1).max(200).default(50),
+});
+
+const listAuditLogs = async (req, res) => {
+  const { error, value } = auditListSchema.validate(req.query);
+  if (error) return res.status(400).json({ error: error.message });
+
+  try {
+    const GUILD_ID = getGuildId();
+    const query = { GuildId: GUILD_ID };
+    if (value.entityType) query.entityType = value.entityType;
+    if (value.entityId) query.entityId = value.entityId;
+    if (value.action) query.action = value.action;
+
+    const logs = await AuditLog.find(query).sort({ createdAt: -1 }).limit(value.limit).lean();
+    return res.json(logs);
+  } catch (err) {
+    if (handleEnvError(err, res)) return;
+    logger.error({ err }, "listAuditLogs error");
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
 
 const listCategorias = async (req, res) => {
   try {
@@ -103,6 +129,15 @@ const createCategoria = async (req, res) => {
     }
 
     const cat = await Categoria.create({ ...value, GuildId: GUILD_ID });
+    await writeAuditLog({
+      guildId: GUILD_ID,
+      entityType: "categoria",
+      entityId: cat._id,
+      action: "create",
+      actor: req.marketActor,
+      after: cat.toObject(),
+    });
+
     logger.info({ id: cat._id, nombre: cat.Nombre }, "Categoria created");
     return res.status(201).json(cat.toObject());
   } catch (err) {
@@ -121,12 +156,24 @@ const updateCategoria = async (req, res) => {
 
   try {
     const GUILD_ID = getGuildId();
+    const existing = await Categoria.findOne({ _id: id, GuildId: GUILD_ID }).lean();
+    if (!existing) return res.status(404).json({ error: "Categoria not found" });
+
     const cat = await Categoria.findOneAndUpdate(
       { _id: id, GuildId: GUILD_ID },
       { $set: value },
       { new: true, lean: true }
     );
-    if (!cat) return res.status(404).json({ error: "Categoria not found" });
+
+    await writeAuditLog({
+      guildId: GUILD_ID,
+      entityType: "categoria",
+      entityId: id,
+      action: "update",
+      actor: req.marketActor,
+      before: existing,
+      after: cat,
+    });
 
     logger.info({ id }, "Categoria updated");
     return res.json(cat);
@@ -152,6 +199,16 @@ const toggleCategoria = async (req, res) => {
       { new: true, lean: true }
     );
 
+    await writeAuditLog({
+      guildId: GUILD_ID,
+      entityType: "categoria",
+      entityId: id,
+      action: "toggle",
+      actor: req.marketActor,
+      before: cat,
+      after: updated,
+    });
+
     logger.info({ id, activa: updated.Activa }, "Categoria toggled");
     return res.json(updated);
   } catch (err) {
@@ -173,6 +230,16 @@ const deleteCategoria = async (req, res) => {
     const deletedItems = await Item.countDocuments({ CategoriaId: id, GuildId: GUILD_ID });
     await Item.deleteMany({ CategoriaId: id, GuildId: GUILD_ID });
     await Categoria.findByIdAndDelete(id);
+
+    await writeAuditLog({
+      guildId: GUILD_ID,
+      entityType: "categoria",
+      entityId: id,
+      action: "delete",
+      actor: req.marketActor,
+      before: cat,
+      metadata: { deletedItems },
+    });
 
     logger.info({ id, deletedItems }, "Categoria deleted");
     return res.json({ ok: true, deletedItems });
@@ -198,6 +265,15 @@ const reorderCategorias = async (req, res) => {
     });
 
     await Promise.all(updates);
+    await writeAuditLog({
+      guildId: GUILD_ID,
+      entityType: "categoria",
+      entityId: "bulk",
+      action: "reorder",
+      actor: req.marketActor,
+      metadata: { orderedIds },
+    });
+
     logger.info({ count: orderedIds.length }, "Categorias reordered");
     return res.json({ ok: true });
   } catch (err) {
@@ -290,6 +366,15 @@ const createItem = async (req, res) => {
       ImagenURL: value.ImagenURL || null,
     });
 
+    await writeAuditLog({
+      guildId: GUILD_ID,
+      entityType: "item",
+      entityId: item._id,
+      action: "create",
+      actor: req.marketActor,
+      after: item.toObject(),
+    });
+
     logger.info({ id: item._id, nombre: item.Nombre }, "Item created");
     return res.status(201).json(item.toObject());
   } catch (err) {
@@ -326,6 +411,16 @@ const updateItem = async (req, res) => {
       { new: true, lean: true }
     );
 
+    await writeAuditLog({
+      guildId: GUILD_ID,
+      entityType: "item",
+      entityId: id,
+      action: "update",
+      actor: req.marketActor,
+      before: existing,
+      after: updated,
+    });
+
     logger.info({ id }, "Item updated");
     return res.json(updated);
   } catch (err) {
@@ -350,6 +445,16 @@ const toggleItem = async (req, res) => {
       { new: true, lean: true }
     );
 
+    await writeAuditLog({
+      guildId: GUILD_ID,
+      entityType: "item",
+      entityId: id,
+      action: "toggle",
+      actor: req.marketActor,
+      before: item,
+      after: updated,
+    });
+
     logger.info({ id, activo: updated.Activo }, "Item toggled");
     return res.json(updated);
   } catch (err) {
@@ -369,6 +474,15 @@ const deleteItem = async (req, res) => {
     if (!item) return res.status(404).json({ error: "Item not found" });
 
     await Item.findByIdAndDelete(id);
+    await writeAuditLog({
+      guildId: GUILD_ID,
+      entityType: "item",
+      entityId: id,
+      action: "delete",
+      actor: req.marketActor,
+      before: item,
+    });
+
     logger.info({ id }, "Item deleted");
     return res.json({ ok: true });
   } catch (err) {
@@ -379,6 +493,7 @@ const deleteItem = async (req, res) => {
 };
 
 module.exports = {
+  listAuditLogs,
   listCategorias,
   createCategoria,
   updateCategoria,

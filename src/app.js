@@ -7,6 +7,7 @@ const safRoutes    = require("./routes/v1/saf");
 const marketRoutes = require("./routes/v1/market");
 const authRoutes   = require("./routes/v1/auth");
 const apiKeyAuth   = require("./middleware/auth");
+const marketUserAuth = require("./middleware/marketUserAuth");
 const logger = require("./logger");
 
 const app = express();
@@ -33,7 +34,7 @@ app.get("/", (req, res) => {
 
 app.use("/v1/auth",   authRoutes);           // público — sin x-api-key
 app.use("/v1/saf",    apiKeyAuth, safRoutes);
-app.use("/v1/market", apiKeyAuth, marketRoutes);
+app.use("/v1/market", apiKeyAuth, marketUserAuth, marketRoutes);
 
 // Global error handler — captura errores que lleguen con next(err)
 app.use((err, req, res, next) => {

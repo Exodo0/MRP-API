@@ -1,6 +1,7 @@
 ﻿const express = require("express");
 const router  = express.Router();
 const {
+  listAuditLogs,
   listCategorias,
   createCategoria,
   updateCategoria,
@@ -15,6 +16,7 @@ const {
   deleteItem,
 } = require("../../controllers/marketController");
 
+router.get   ("/audit-logs",             listAuditLogs);
 router.get   ("/categorias",             listCategorias);
 router.post  ("/categorias",             createCategoria);
 router.post  ("/categorias/reorder",     reorderCategorias);
