@@ -1,7 +1,7 @@
-const { ROLES, GUILD_ID } = require("../config");
+const { ROLES, GUILD_ID } = require("../config.js");
 const Joi = require("joi");
 const logger = require("../logger");
-const mongoose = require("mongoose");
+const webConn = require("../dbWebConn"); // Usamos webConn para las transacciones de economía
 const EconomyUser = require("../models/EconomyUser");
 
 const schema = Joi.object({
@@ -49,15 +49,18 @@ const updateLicense = async (req, res) => {
   let paymentProcessed = false;
 
   if (action === "add" && costo > 0) {
-    session = await mongoose.startSession();
+    // Usamos webConn en lugar de mongoose global porque la colección está en esa base de datos
+    session = await webConn.startSession();
     session.startTransaction();
 
     try {
       // 1. Buscar al usuario comprador
-      const buyer = await EconomyUser.findOne({
-        GuildId: GUILD_ID,
-        UserId: userId,
-      }).session(session);
+      // Quitamos el filtro por GUILD_ID para asegurar que encuentre al usuario independientemente del servidor
+      const buyer = await EconomyUser.findOne({ UserId: userId }).session(
+        session,
+      );
+
+      console.log(`Buscando usuario ${userId}... Encontrado:`, buyer !== null);
 
       if (!buyer) {
         await session.abortTransaction();
@@ -177,7 +180,7 @@ const updateLicense = async (req, res) => {
         "Discord API failed after payment. Attempting manual rollback...",
       );
       try {
-        const rollbackSession = await mongoose.startSession();
+        const rollbackSession = await webConn.startSession();
         rollbackSession.startTransaction();
 
         const iva = Math.round(costo * 0.16);

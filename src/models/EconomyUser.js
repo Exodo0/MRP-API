@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
-// Asegúrate de usar la conexión principal si es la misma DB, o webConn si es otra.
-// Asumo que usa la conexión de mongoose por defecto ya que index.js hace await connectDB()
+const webConn = require("../dbWebConn"); // DB MXRP
 
 const EconomyUserSchema = new mongoose.Schema(
   {
@@ -36,7 +35,10 @@ const EconomyUserSchema = new mongoose.Schema(
     // ── Control de cobro de salario ──────────────────────
     LastCobro: { type: Date, default: null },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    collection: "economyusers", // Forzamos el nombre de la colección por si Mongoose lo está pluralizando raro.
+  },
 );
 
 // Índice compuesto — búsqueda por guild + usuario en O(1)
@@ -45,4 +47,4 @@ EconomyUserSchema.index({ GuildId: 1, UserId: 1 }, { unique: true });
 // Índice para el leaderboard
 EconomyUserSchema.index({ GuildId: 1, "CuentaSalario.Balance": -1 });
 
-module.exports = mongoose.model("EconomyUser", EconomyUserSchema);
+module.exports = webConn.model("EconomyUser", EconomyUserSchema);
