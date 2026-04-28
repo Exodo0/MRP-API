@@ -1,12 +1,11 @@
 {
-  "name": "MXRP-API",
+  "name": "mxrp-api",
   "version": "3.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "create-key": "node scripts/create-key.js",
-    "create-user": "node scripts/create-user.js",
     "create-user": "node scripts/create-user.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -17,7 +16,6 @@
   "dependencies": {
     "body-parser": "^2.2.2",
     "cors": "^2.8.6",
-    "discord.js": "^14.26.0",
     "dotenv": "^17.4.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.2",

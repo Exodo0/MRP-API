@@ -3,18 +3,16 @@ const bodyParser = require("body-parser");
 const helmet = require("helmet");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
-const safRoutes    = require("./routes/v1/saf");
+const semoviRoutes = require("./routes/v1/semovi");
 const marketRoutes = require("./routes/v1/market");
-const authRoutes   = require("./routes/v1/auth");
-const apiKeyAuth   = require("./middleware/auth");
+const authRoutes = require("./routes/v1/auth");
+const apiKeyAuth = require("./middleware/auth");
 const marketUserAuth = require("./middleware/marketUserAuth");
 const logger = require("./logger");
 
 const app = express();
 
-// Fly.io (y cualquier proxy inverso) añade X-Forwarded-For.
-// Sin esto, express-rate-limit lanza ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
-app.set('trust proxy', 1);
+app.set("trust proxy", 1);
 
 app.use(bodyParser.json());
 app.use(helmet());
@@ -32,8 +30,8 @@ app.get("/", (req, res) => {
   res.send("MXRP API is running.");
 });
 
-app.use("/v1/auth",   authRoutes);           // público — sin x-api-key
-app.use("/v1/saf",    apiKeyAuth, safRoutes);
+app.use("/v1/auth", authRoutes); // público — sin x-api-key
+app.use("/v1/semovi", apiKeyAuth, semoviRoutes);
 app.use("/v1/market", apiKeyAuth, marketUserAuth, marketRoutes);
 
 // Global error handler — captura errores que lleguen con next(err)

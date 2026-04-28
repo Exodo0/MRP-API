@@ -6,7 +6,6 @@ dotenv.config();
 
 const logger = require("./src/logger");
 const app = require("./src/app");
-const { startDiscordBot } = require("./src/discord/client");
 const { connectDB } = require("./src/db");
 require("./src/dbWebConn"); // inicia la conexión MXRP-Web al arrancar
 
@@ -16,10 +15,7 @@ const start = async () => {
   // 1. Connect to MongoDB
   await connectDB();
 
-  // 2. Start Discord Bot
-  await startDiscordBot();
-
-  // 3. Start Express Server
+  // 2. Start Express Server
   app.listen(PORT, () => {
     logger.info({ port: PORT }, "Server is running");
   });
