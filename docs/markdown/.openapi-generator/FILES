@@ -1,0 +1,6 @@
+.openapi-generator-ignore
+Apis/DefaultApi.md
+Models/_v1_semovi_licenses_post_200_response.md
+Models/_v1_semovi_licenses_post_400_response.md
+Models/_v1_semovi_licenses_post_request.md
+README.md

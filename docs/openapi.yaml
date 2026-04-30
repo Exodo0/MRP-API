@@ -1,0 +1,89 @@
+openapi: 3.0.1
+info:
+  title: MXRP Public API
+  description: |
+    ## Autenticación de la API
+    Toda petición a la API **debe tener una cabecera `x-api-key` válida proporcionada.**
+
+    ## Asignar o Remover Licencia (SEMOVI)
+    Permite asignar o remover roles de licencias de Discord a los usuarios. Este endpoint incluye un sistema económico automatizado: si se proporciona un `costo` mayor a 0, procesa el cobro en cascada (Efectivo > Corriente > Salario) y distribuye los impuestos (16% al SAT, 84% a SEMOVI). Si el costo es 0, la licencia es gratis.
+  version: 1.0.0
+servers:
+  - url: http://mrp-api-odgwba.fly.dev
+    description: Servidor de Producción (Fly.io)
+security:
+  - ApiKeyAuth: []
+paths:
+  /v1/semovi/licenses:
+    post:
+      summary: Asignar o remover licencia
+      description: Asigna o remueve un rol de licencia en Discord y maneja el cobro automático si aplica.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - license
+                - action
+              properties:
+                userId:
+                  type: string
+                  description: El ID numérico del usuario en Discord.
+                  example: "123456789012345678"
+                license:
+                  type: string
+                  description: El identificador de la licencia (Ej. LicenciaA1, LicenciaB1).
+                  example: "LicenciaA1"
+                action:
+                  type: string
+                  description: "Acción a realizar. Valores permitidos: 'add' o 'remove'."
+                  example: "add"
+                costo:
+                  type: number
+                  description: Costo de la licencia. 0 por defecto (Gratis).
+                  example: 500
+      responses:
+        "200":
+          description: Licencia actualizada exitosamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Role LicenciaA1 added to user 123456789012345678."
+                  paymentProcessed:
+                    type: boolean
+                    example: true
+                  costo:
+                    type: number
+                    example: 500
+        "400":
+          description: Petición incorrecta o fondos insuficientes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Insufficient funds across all valid accounts (Efectivo, Corriente, Salario)."
+        "401":
+          description: No autorizado. Falta el API Key.
+        "403":
+          description: Prohibido. API Key inválida.
+        "404":
+          description: Usuario no encontrado en la base de datos de economía.
+        "500":
+          description: Error interno del servidor o fallo de comunicación con Discord.
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: REQUERIDO EN TODAS LAS PETICIONES.
