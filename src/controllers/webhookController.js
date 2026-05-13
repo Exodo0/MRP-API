@@ -137,8 +137,16 @@ async function handleEmergencyCall(data) {
 }
 
 async function handleCustomCommand(data) {
+  logger.info({ rawData: data }, "[Webhook] CustomCommand raw data");
+
   const { command, user, args } = data;
-  logger.info({ command, user: user?.username, args }, "[Webhook] CustomCommand recibido");
+  const username = user?.username ?? user?.name ?? "desconocido";
+  const argsText = Array.isArray(args) ? args.join(" ") : args ?? "";
+
+  logger.info(
+    { command, user: username, args: argsText, fullCommand: `;${command} ${argsText}`.trim() },
+    "[Webhook] CustomCommand procesado"
+  );
 }
 
 module.exports = {
