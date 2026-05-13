@@ -95,8 +95,6 @@ const handleWebhook = async (req, res) => {
     return res.status(400).json({ error: "Invalid JSON" });
   }
 
-  logger.info({ event: describeEvent(body) }, "[Webhook] Firma valida - evento recibido");
-
   await processEvent(body);
 
   res.status(200).json({ received: true });
@@ -137,15 +135,10 @@ async function handleEmergencyCall(data) {
 }
 
 async function handleCustomCommand(data) {
-  logger.info({ rawData: data }, "[Webhook] CustomCommand raw data");
-
-  const { command, user, args } = data;
-  const username = user?.username ?? user?.name ?? "desconocido";
-  const argsText = Array.isArray(args) ? args.join(" ") : args ?? "";
-
+  const { command, argument } = data;
   logger.info(
-    { command, user: username, args: argsText, fullCommand: `;${command} ${argsText}`.trim() },
-    "[Webhook] CustomCommand procesado"
+    { command, argument, fullCommand: `;${command} ${argument ?? ""}`.trim() },
+    "[Webhook] CustomCommand recibido"
   );
 }
 
