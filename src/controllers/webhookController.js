@@ -57,6 +57,8 @@ function describeEvent(body) {
         return `ChatCommand: "${ev.data?.command}" de ${ev.data?.user?.username ?? "?"}`;
       case "EmergencyCall":
         return `EmergencyCall de ${ev.data?.caller?.username ?? "?"}`;
+      case "CustomCommand":
+        return `CustomCommand: "${ev.data?.command}" de ${ev.data?.user?.username ?? "?"}`;
       default:
         return `evento: ${ev.event}`;
     }
@@ -114,6 +116,9 @@ async function processEvent(body) {
       case "EmergencyCall":
         await handleEmergencyCall(event.data);
         break;
+      case "CustomCommand":
+        await handleCustomCommand(event.data);
+        break;
       default:
         logger.info({ event: event.event }, "[Webhook] Evento sin handler especifico");
         break;
@@ -129,6 +134,11 @@ async function handleChatCommand(data) {
 async function handleEmergencyCall(data) {
   const { caller } = data;
   logger.info({ caller: caller?.username }, "[Webhook] EmergencyCall recibido");
+}
+
+async function handleCustomCommand(data) {
+  const { command, user, args } = data;
+  logger.info({ command, user: user?.username, args }, "[Webhook] CustomCommand recibido");
 }
 
 module.exports = {
