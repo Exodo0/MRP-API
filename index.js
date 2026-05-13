@@ -7,6 +7,7 @@ dotenv.config();
 const logger = require("./src/logger");
 const app = require("./src/app");
 const { connectDB } = require("./src/db");
+const { initWebhookKey } = require("./src/controllers/webhookController");
 require("./src/dbWebConn"); // inicia la conexión MXRP-Web al arrancar
 
 const PORT = process.env.PORT || 3000;
@@ -15,7 +16,10 @@ const start = async () => {
   // 1. Connect to MongoDB
   await connectDB();
 
-  // 2. Start Express Server
+  // 2. Load ER:LC webhook public key
+  await initWebhookKey();
+
+  // 3. Start Express Server
   app.listen(PORT, () => {
     logger.info({ port: PORT }, "Server is running");
   });

@@ -7,15 +7,17 @@ const semoviRoutes = require("./routes/v1/semovi");
 const marketRoutes = require("./routes/v1/market");
 const authRoutes = require("./routes/v1/auth");
 const dashboardRoutes = require("./routes/v1/dashboard");
+const webhookRoutes = require("./routes/v1/webhook");
 const apiKeyAuth = require("./middleware/auth");
 const marketUserAuth = require("./middleware/marketUserAuth");
+const rawBodySaver = require("./middleware/rawBody");
 const logger = require("./logger");
 
 const app = express();
 
 app.set("trust proxy", 1);
 
-app.use(bodyParser.json());
+app.use(bodyParser.json({ verify: rawBodySaver }));
 app.use(helmet());
 app.use(cors());
 
@@ -35,6 +37,7 @@ app.use("/v1/auth", authRoutes); // público — sin x-api-key
 app.use("/v1/semovi", apiKeyAuth, semoviRoutes);
 app.use("/v1/market", apiKeyAuth, marketUserAuth, marketRoutes);
 app.use("/v1/dashboard", dashboardRoutes); // Dashboard — JWT auth
+app.use("/v1/webhook", webhookRoutes); // ER:LC Event Webhook
 
 // Global error handler — captura errores que lleguen con next(err)
 app.use((err, req, res, next) => {
