@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ER:LC Webhook Logs</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #c9d1d9; padding: 20px; }
+    h1 { color: #58a6ff; margin-bottom: 10px; }
+    .status { font-size: 14px; margin-bottom: 20px; }
+    .status.connected { color: #3fb950; }
+    .status.disconnected { color: #f85149; }
+    #logs { max-height: 80vh; overflow-y: auto; }
+    .log-entry {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 14px;
+    }
+    .log-entry .command { color: #d2a8ff; font-weight: bold; }
+    .log-entry .argument { color: #79c0ff; }
+    .log-entry .time { color: #8b949e; font-size: 12px; }
+    .log-entry .full { color: #7ee787; }
+    .empty { color: #484f58; text-align: center; padding: 40px; }
+  </style>
+</head>
+<body>
+  <h1>ER:LC Webhook Logs</h1>
+  <div id="status" class="status disconnected">Desconectado</div>
+  <div id="logs">
+    <div class="empty">Esperando eventos del webhook...</div>
+  </div>
+
+  <script>
+    const logsContainer = document.getElementById("logs");
+    const statusEl = document.getElementById("status");
+    let firstLog = true;
+
+    function connect() {
+      const evtSource = new EventSource("/v1/webhook/logs-stream");
+
+      evtSource.onopen = () => {
+        statusEl.textContent = "Conectado";
+        statusEl.className = "status connected";
+      };
+
+      evtSource.onmessage = (e) => {
+        if (firstLog) {
+          logsContainer.innerHTML = "";
+          firstLog = false;
+        }
+        const log = JSON.parse(e.data);
+        const div = document.createElement("div");
+        div.className = "log-entry";
+        div.innerHTML = `
+          <div class="time">${log.timestamp}</div>
+          <div class="command">;${log.command}</div>
+          <div class="argument">${log.argument || "(sin argumento)"}</div>
+          <div class="full">${log.fullCommand}</div>
+        `;
+        logsContainer.prepend(div);
+      };
+
+      evtSource.onerror = () => {
+        statusEl.textContent = "Desconectado — reconectando...";
+        statusEl.className = "status disconnected";
+        evtSource.close();
+        setTimeout(connect, 3000);
+      };
+    }
+
+    connect();
+  </script>
+</body>
+</html>

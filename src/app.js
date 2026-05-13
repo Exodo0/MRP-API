@@ -17,6 +17,8 @@ const app = express();
 
 app.set("trust proxy", 1);
 
+app.use(express.static("public"));
+
 app.use(bodyParser.json({ verify: rawBodySaver }));
 app.use(helmet());
 app.use(cors());

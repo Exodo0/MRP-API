@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const logger = require("../logger");
+const { addLog } = require("../services/logBuffer");
 
 const ERLC_PUBLIC_KEY_SPKI =
   process.env.ERLC_PUBLIC_KEY ||
@@ -136,10 +137,14 @@ async function handleEmergencyCall(data) {
 
 async function handleCustomCommand(data) {
   const { command, argument } = data;
-  logger.info(
-    { command, argument, fullCommand: `;${command} ${argument ?? ""}`.trim() },
-    "[Webhook] CustomCommand recibido"
-  );
+  const logEntry = {
+    type: "CustomCommand",
+    command,
+    argument: argument ?? "",
+    fullCommand: `;${command} ${argument ?? ""}`.trim(),
+  };
+  logger.info(logEntry, "[Webhook] CustomCommand recibido");
+  addLog(logEntry);
 }
 
 module.exports = {
