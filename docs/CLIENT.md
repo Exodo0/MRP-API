@@ -282,6 +282,7 @@ Body:
 ```json
 {
   "CategoriaId": "<ObjectId de la categoria>",
+  "Subcategoria": "Classic",
   "Nombre": "AK-47",
   "Descripcion": "Fusil de asalto",
   "Precio": 15000,
@@ -294,6 +295,7 @@ Body:
 ```
 
 - `Stock: -1` = infinito
+- `Subcategoria`: opcional, permite sub-agrupar items dentro de una categoría (ej. `Classic`, `Deportivo`, `Offroad`)
 - `Descuento`: 0–100 (porcentaje)
 - `ImagenURL`: la URL pública de Supabase (la sube la app Electron antes de llamar este endpoint)
 

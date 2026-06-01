@@ -6,6 +6,7 @@ const ItemSchema = new mongoose.Schema(
     GuildId:          { type: String, required: true },
     CategoriaId:      { type: mongoose.Schema.Types.ObjectId, ref: "Categoria", required: true },
     CategoriaNombre:  { type: String, required: true },
+    Subcategoria:     { type: String, default: "" },
     Nombre:           { type: String, required: true },
     Descripcion:      { type: String, default: "" },
     Precio:           { type: Number, required: true, min: 0 },

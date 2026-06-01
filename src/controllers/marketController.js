@@ -43,6 +43,7 @@ const categoriaUpdateSchema = Joi.object({
 
 const itemCreateSchema = Joi.object({
   CategoriaId: Joi.string().required(),
+  Subcategoria: Joi.string().trim().max(64).allow("").default(""),
   Nombre: Joi.string().trim().max(128).required(),
   Descripcion: Joi.string().trim().max(1024).allow("").default(""),
   Precio: Joi.number().min(0).required(),
@@ -56,6 +57,7 @@ const itemCreateSchema = Joi.object({
 
 const itemUpdateSchema = Joi.object({
   CategoriaId: Joi.string().optional(),
+  Subcategoria: Joi.string().trim().max(64).allow("").optional(),
   Nombre: Joi.string().trim().max(128).optional(),
   Descripcion: Joi.string().trim().max(1024).allow("").optional(),
   Precio: Joi.number().min(0).optional(),
