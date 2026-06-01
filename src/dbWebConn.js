@@ -6,7 +6,7 @@ const uri    = process.env.MONGO_URI_WEB;
 const dbName = process.env.MONGO_DB_WEB_NAME || "MXRP";
 
 if (!uri) {
-  logger.error("MONGO_URI_WEB is not set — /v1/market endpoints will fail. Set it with: fly secrets set MONGO_URI_WEB=...");
+  logger.error("MONGO_URI_WEB is not set — /v1/market endpoints will fail. Configure MONGO_URI_WEB in the deploy environment.");
 }
 
 // Conexión dedicada para la DB de MXRP (market/tienda).

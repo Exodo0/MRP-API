@@ -9,8 +9,10 @@ info:
     Permite asignar o remover roles de licencias de Discord a los usuarios. Este endpoint incluye un sistema económico automatizado: si se proporciona un `costo` mayor a 0, procesa el cobro en cascada (Efectivo > Corriente > Salario) y distribuye los impuestos (16% al SAT, 84% a SEMOVI). Si el costo es 0, la licencia es gratis.
   version: 1.0.0
 servers:
-  - url: http://mrp-api-odgwba.fly.dev
-    description: Servidor de Producción (Fly.io)
+  - url: http://localhost:3000
+    description: Local
+  - url: https://api.example.com
+    description: Producción
 security:
   - ApiKeyAuth: []
 paths:

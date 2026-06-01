@@ -9,7 +9,7 @@ const { writeAuditLog } = require("../services/auditService");
 
 function getGuildId() {
   const id = process.env.GUILD_ID;
-  if (!id) throw new Error("GUILD_ID env var is not set - add it with: fly secrets set GUILD_ID=...");
+  if (!id) throw new Error("GUILD_ID env var is not set");
   return id;
 }
 

@@ -26,7 +26,7 @@ app.use(cors());
 const limiter = rateLimit({ windowMs: 60 * 1000, max: 60 });
 app.use("/v1", limiter);
 
-// Health check — no requiere auth, usado por Fly.io para mantener la máquina viva
+// Health check — no requiere auth, usado por la plataforma de despliegue.
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok", uptime: process.uptime() });
 });

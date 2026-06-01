@@ -4,6 +4,8 @@
 
 `http://localhost:3000`
 
+In production, replace it with the URL assigned by your Nixpacks host.
+
 ## Auth
 
 All protected routes require `x-api-key`.
@@ -167,8 +169,16 @@ print(res.status_code, res.json())
 Required env vars:
 
 - `DATABASE_URL` MongoDB connection string
-- `PORT` API port (default 3000)
+- `MONGO_URI_WEB` MongoDB connection string for market/dashboard data
+- `GUILD_ID` Discord guild id
+- `PORT` API port provided by the platform (default 3000 locally)
 - `DISCORD_TOKEN` Bot token
+
+Nixpacks uses `nixpacks.toml`:
+
+- install: `pnpm install --frozen-lockfile`
+- start: `pnpm start`
+- health check path: `/health`
 
 ## Create API Key
 

@@ -1,7 +1,7 @@
 # MXRP API (Client Guide)
 
 Base URL:
-`https://mrp-api-odgwba.fly.dev`
+`https://YOUR_API_DOMAIN`
 
 ## Auth
 
@@ -78,7 +78,7 @@ Errors:
 Add role:
 
 ```bash
-curl -X POST "https://mrp-api-odgwba.fly.dev/v1/semovi/licenses" \
+curl -X POST "https://YOUR_API_DOMAIN/v1/semovi/licenses" \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "userId": "123456789012345678", "license": "LicenciaA1", "action": "add" }'
@@ -87,7 +87,7 @@ curl -X POST "https://mrp-api-odgwba.fly.dev/v1/semovi/licenses" \
 Remove role:
 
 ```bash
-curl -X POST "https://mrp-api-odgwba.fly.dev/v1/semovi/licenses" \
+curl -X POST "https://YOUR_API_DOMAIN/v1/semovi/licenses" \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "userId": "123456789012345678", "license": "LicenciaA1", "action": "remove" }'
@@ -98,7 +98,7 @@ curl -X POST "https://mrp-api-odgwba.fly.dev/v1/semovi/licenses" \
 Add role:
 
 ```js
-const res = await fetch("https://mrp-api-odgwba.fly.dev/v1/semovi/licenses", {
+const res = await fetch("https://YOUR_API_DOMAIN/v1/semovi/licenses", {
   method: "POST",
   headers: {
     "x-api-key": "YOUR_API_KEY",
@@ -119,7 +119,7 @@ console.log(data);
 Remove role:
 
 ```js
-const res = await fetch("https://mrp-api-odgwba.fly.dev/v1/semovi/licenses", {
+const res = await fetch("https://YOUR_API_DOMAIN/v1/semovi/licenses", {
   method: "POST",
   headers: {
     "x-api-key": "YOUR_API_KEY",
@@ -144,7 +144,7 @@ Add role:
 import requests
 
 res = requests.post(
-    "https://mrp-api-odgwba.fly.dev/v1/semovi/licenses",
+    "https://YOUR_API_DOMAIN/v1/semovi/licenses",
     headers={"x-api-key": "YOUR_API_KEY"},
     json={"userId": "123456789012345678", "license": "LicenciaA1", "action": "add"},
 )
@@ -158,7 +158,7 @@ Remove role:
 import requests
 
 res = requests.post(
-    "https://mrp-api-odgwba.fly.dev/v1/semovi/licenses",
+    "https://YOUR_API_DOMAIN/v1/semovi/licenses",
     headers={"x-api-key": "YOUR_API_KEY"},
     json={"userId": "123456789012345678", "license": "LicenciaA1", "action": "remove"},
 )
@@ -171,7 +171,7 @@ print(res.status_code, res.json())
 ## Market — Categorías & Items
 
 Todos los endpoints de market requieren `x-api-key`.
-Base: `https://mrp-api-odgwba.fly.dev/v1/market`
+Base: `https://YOUR_API_DOMAIN/v1/market`
 
 ---
 
