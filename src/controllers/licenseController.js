@@ -3,6 +3,11 @@ const Joi = require("joi");
 const logger = require("../logger");
 const webConn = require("../dbWebConn"); // Usamos webConn para las transacciones de economía
 const EconomyUser = require("../models/EconomyUser");
+const Verificado = require("../models/Verificado");
+const Ine = require("../models/Ine");
+const Pasaporte = require("../models/Pasaporte");
+const SemoviLicense = require("../models/SemoviLicense");
+const Debt = require("../models/Debt");
 
 const schema = Joi.object({
   userId: Joi.string().required(),
@@ -12,6 +17,314 @@ const schema = Joi.object({
   action: Joi.string().valid("add", "remove").required(),
   costo: Joi.number().min(0).default(0), // El costo es opcional, 0 por defecto
 });
+
+const issueSchema = Joi.object({
+  userId: Joi.string().required(),
+  type: Joi.string().trim().max(32).required(),
+  price: Joi.number().min(0).default(0),
+  paymentMode: Joi.string().valid("free", "paid", "debt").default("free"),
+  expiresInDays: Joi.number().integer().min(1).max(3650).default(365),
+  number: Joi.string().trim().max(32).optional(),
+});
+
+const getGuildId = () => process.env.GUILD_ID || GUILD_ID;
+
+const getIdentityData = async (guildId, userId) => {
+  const [verificado, ine, pasaporte] = await Promise.all([
+    Verificado.findOne({ GuildId: guildId, UserId: userId, Activo: true })
+      .sort({ FechaVerificacion: -1 })
+      .lean(),
+    Ine.findOne({ GuildId: guildId, UserId: userId }).sort({ createdAt: -1 }).lean(),
+    Pasaporte.findOne({ GuildId: guildId, UserId: userId }).sort({ createdAt: -1 }).lean(),
+  ]);
+
+  const document = ine || pasaporte;
+  if (!document) return null;
+
+  const documentType = ine ? "ine" : "pasaporte";
+  const nacionalidad = ine ? "MEXICANA" : pasaporte.Pais || null;
+
+  return {
+    discordId: userId,
+    roblox: {
+      id: verificado?.RobloxId ?? null,
+      username: verificado?.RobloxUsername ?? document.RobloxName ?? null,
+      verified: Boolean(verificado),
+    },
+    identity: {
+      documentType,
+      nombres: document.Nombre,
+      apellidos: document.Apellido,
+      nacionalidad,
+      curp: document.Curp ?? null,
+    },
+  };
+};
+
+const generateLicenseNumber = (type) => {
+  const now = new Date();
+  const ymd = now.toISOString().slice(0, 10).replaceAll("-", "");
+  const random = Math.floor(Math.random() * 1_000_000).toString().padStart(6, "0");
+  return `SEMOVI-${String(type).toUpperCase()}-${ymd}-${random}`;
+};
+
+const serializeLicense = (license) => {
+  if (!license) return null;
+
+  return {
+    id: String(license._id),
+    active: Boolean(license.Active),
+    type: license.Type,
+    number: license.Number,
+    issuedAt: license.IssuedAt,
+    expiresAt: license.ExpiresAt,
+    price: license.Price ?? 0,
+    paymentStatus: license.PaymentStatus,
+    debtId: license.DebtId ? String(license.DebtId) : null,
+  };
+};
+
+const applyPaidCharge = async ({ session, guildId, userId, amount }) => {
+  const semoviId = process.env.SEMOVI_ID;
+  const satId = process.env.SAT_ID;
+
+  if (!semoviId || !satId) {
+    const err = new Error("SEMOVI_ID or SAT_ID is not set");
+    err.statusCode = 500;
+    throw err;
+  }
+
+  const buyer = await EconomyUser.findOne({ GuildId: guildId, UserId: userId }).session(session);
+  if (!buyer) {
+    const err = new Error("Economy user not found. Cannot process payment.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  let remainingCost = amount;
+
+  if (buyer.Efectivo >= remainingCost) {
+    buyer.Efectivo -= remainingCost;
+    remainingCost = 0;
+  } else if (buyer.Efectivo > 0) {
+    remainingCost -= buyer.Efectivo;
+    buyer.Efectivo = 0;
+  }
+
+  if (remainingCost > 0 && buyer.CuentaCorriente.Balance >= remainingCost) {
+    buyer.CuentaCorriente.Balance -= remainingCost;
+    remainingCost = 0;
+  } else if (remainingCost > 0 && buyer.CuentaCorriente.Balance > 0) {
+    remainingCost -= buyer.CuentaCorriente.Balance;
+    buyer.CuentaCorriente.Balance = 0;
+  }
+
+  if (remainingCost > 0 && buyer.CuentaSalario.Balance >= remainingCost) {
+    buyer.CuentaSalario.Balance -= remainingCost;
+    remainingCost = 0;
+  } else if (remainingCost > 0 && buyer.CuentaSalario.Balance > 0) {
+    remainingCost -= buyer.CuentaSalario.Balance;
+    buyer.CuentaSalario.Balance = 0;
+  }
+
+  if (remainingCost > 0) {
+    const err = new Error("Insufficient funds across all valid accounts.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  await buyer.save({ session });
+  await distributeGovernmentIncome({ session, guildId, amount });
+};
+
+const distributeGovernmentIncome = async ({ session, guildId, amount }) => {
+  const semoviId = process.env.SEMOVI_ID;
+  const satId = process.env.SAT_ID;
+
+  if (!semoviId || !satId) {
+    const err = new Error("SEMOVI_ID or SAT_ID is not set");
+    err.statusCode = 500;
+    throw err;
+  }
+
+  const iva = Math.round(amount * 0.16);
+  const semoviIncome = amount - iva;
+
+  await EconomyUser.findOneAndUpdate(
+    { GuildId: guildId, UserId: satId },
+    { $inc: { Efectivo: iva }, $setOnInsert: { Sat: true } },
+    { new: true, upsert: true, session },
+  );
+
+  await EconomyUser.findOneAndUpdate(
+    { GuildId: guildId, UserId: semoviId },
+    { $inc: { Efectivo: semoviIncome } },
+    { new: true, upsert: true, session },
+  );
+
+  return { iva, semoviIncome };
+};
+
+const getIdentity = async (req, res) => {
+  const { userId } = req.params;
+  const guildId = getGuildId();
+
+  try {
+    const identity = await getIdentityData(guildId, userId);
+    if (!identity) {
+      return res.status(404).json({ error: "Identity document not found for user." });
+    }
+
+    return res.json(identity);
+  } catch (err) {
+    logger.error({ err, userId }, "getIdentity error");
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+const getDigitalLicense = async (req, res) => {
+  const { userId } = req.params;
+  const guildId = getGuildId();
+
+  try {
+    const [identity, license] = await Promise.all([
+      getIdentityData(guildId, userId),
+      SemoviLicense.findOne({
+        GuildId: guildId,
+        UserId: userId,
+        Active: true,
+        ExpiresAt: { $gt: new Date() },
+      })
+        .sort({ IssuedAt: -1 })
+        .lean(),
+    ]);
+
+    if (!identity) {
+      return res.status(404).json({ error: "Identity document not found for user." });
+    }
+
+    return res.json({
+      ...identity,
+      license: serializeLicense(license),
+    });
+  } catch (err) {
+    logger.error({ err, userId }, "getDigitalLicense error");
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+const issueDigitalLicense = async (req, res) => {
+  const { error, value } = issueSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+
+  const { userId, type, price, paymentMode, expiresInDays } = value;
+  const guildId = getGuildId();
+
+  if (paymentMode === "free" && price > 0) {
+    return res.status(400).json({ error: "paymentMode free requires price 0." });
+  }
+
+  if ((paymentMode === "paid" || paymentMode === "debt") && price <= 0) {
+    return res.status(400).json({ error: "paid or debt licenses require price greater than 0." });
+  }
+
+  const session = await webConn.startSession();
+  session.startTransaction();
+
+  try {
+    const identity = await getIdentityData(guildId, userId);
+    if (!identity) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ error: "Identity document not found for user." });
+    }
+
+    await SemoviLicense.updateMany(
+      { GuildId: guildId, UserId: userId, Active: true },
+      { $set: { Active: false, CancelledAt: new Date() } },
+      { session },
+    );
+
+    let debt = null;
+    if (paymentMode === "paid") {
+      await applyPaidCharge({ session, guildId, userId, amount: price });
+    }
+
+    if (paymentMode === "debt") {
+      debt = await Debt.create(
+        [
+          {
+            GuildId: guildId,
+            UserId: userId,
+            Institution: "SEMOVI",
+            Concept: `Licencia de conducir tipo ${type}`,
+            Amount: price,
+            PaidAmount: 0,
+            Status: "pending",
+            Metadata: { type },
+            CreatedBy: req.apiKeyOwner ?? null,
+          },
+        ],
+        { session },
+      ).then((docs) => docs[0]);
+
+      await EconomyUser.findOneAndUpdate(
+        { GuildId: guildId, UserId: userId },
+        {
+          $inc: { Deuda: price },
+          $setOnInsert: { GuildId: guildId, UserId: userId },
+        },
+        { new: true, upsert: true, session },
+      );
+
+      await distributeGovernmentIncome({ session, guildId, amount: price });
+    }
+
+    const issuedAt = new Date();
+    const expiresAt = new Date(issuedAt);
+    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+    const license = await SemoviLicense.create(
+      [
+        {
+          GuildId: guildId,
+          UserId: userId,
+          Type: type,
+          Number: value.number || generateLicenseNumber(type),
+          IssuedAt: issuedAt,
+          ExpiresAt: expiresAt,
+          Active: true,
+          Price: price,
+          PaymentStatus: paymentMode,
+          DebtId: debt?._id ?? null,
+          CreatedBy: req.apiKeyOwner ?? null,
+        },
+      ],
+      { session },
+    ).then((docs) => docs[0]);
+
+    await session.commitTransaction();
+    session.endSession();
+
+    logger.info(
+      { userId, type, price, paymentMode, owner: req.apiKeyOwner },
+      "SEMOVI digital license issued",
+    );
+
+    return res.status(201).json({
+      ...identity,
+      license: serializeLicense(license),
+    });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+
+    logger.error({ err, userId, type, price, paymentMode }, "issueDigitalLicense error");
+    return res.status(err.statusCode || 500).json({
+      error: err.statusCode ? err.message : "Internal Server Error",
+    });
+  }
+};
 
 const updateLicense = async (req, res) => {
   const { error, value } = schema.validate(req.body);
@@ -256,4 +569,9 @@ const updateLicense = async (req, res) => {
   }
 };
 
-module.exports = { updateLicense };
+module.exports = {
+  getIdentity,
+  getDigitalLicense,
+  issueDigitalLicense,
+  updateLicense,
+};

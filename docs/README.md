@@ -2,9 +2,7 @@
 
 ## Base URL
 
-`http://localhost:3000`
-
-In production, replace it with the URL assigned by your Nixpacks host.
+`https://api.egologic.cloud`
 
 ## Auth
 
@@ -77,7 +75,7 @@ Errors:
 Add role:
 
 ```bash
-curl -X POST "http://localhost:3000/v1/semovi/licenses" \
+curl -X POST "https://api.egologic.cloud/v1/semovi/licenses" \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "userId": "123456789012345678", "license": "LicenciaA1", "action": "add" }'
@@ -86,7 +84,7 @@ curl -X POST "http://localhost:3000/v1/semovi/licenses" \
 Remove role:
 
 ```bash
-curl -X POST "http://localhost:3000/v1/semovi/licenses" \
+curl -X POST "https://api.egologic.cloud/v1/semovi/licenses" \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "userId": "123456789012345678", "license": "LicenciaA1", "action": "remove" }'
@@ -97,7 +95,7 @@ curl -X POST "http://localhost:3000/v1/semovi/licenses" \
 Add role:
 
 ```js
-const res = await fetch("http://localhost:3000/v1/semovi/licenses", {
+const res = await fetch("https://api.egologic.cloud/v1/semovi/licenses", {
   method: "POST",
   headers: {
     "x-api-key": "YOUR_API_KEY",
@@ -117,7 +115,7 @@ console.log(data);
 Remove role:
 
 ```js
-const res = await fetch("http://localhost:3000/v1/semovi/licenses", {
+const res = await fetch("https://api.egologic.cloud/v1/semovi/licenses", {
   method: "POST",
   headers: {
     "x-api-key": "YOUR_API_KEY",
@@ -142,7 +140,7 @@ Add role:
 import requests
 
 res = requests.post(
-    "http://localhost:3000/v1/semovi/licenses",
+    "https://api.egologic.cloud/v1/semovi/licenses",
     headers={"x-api-key": "YOUR_API_KEY"},
     json={"userId": "123456789012345678", "license": "LicenciaA1", "action": "add"},
 )
@@ -156,7 +154,7 @@ Remove role:
 import requests
 
 res = requests.post(
-    "http://localhost:3000/v1/semovi/licenses",
+    "https://api.egologic.cloud/v1/semovi/licenses",
     headers={"x-api-key": "YOUR_API_KEY"},
     json={"userId": "123456789012345678", "license": "LicenciaA1", "action": "remove"},
 )

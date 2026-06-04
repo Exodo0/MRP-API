@@ -7,15 +7,111 @@ info:
 
     ## Asignar o Remover Licencia (SEMOVI)
     Permite asignar o remover roles de licencias de Discord a los usuarios. Este endpoint incluye un sistema económico automatizado: si se proporciona un `costo` mayor a 0, procesa el cobro en cascada (Efectivo > Corriente > Salario) y distribuye los impuestos (16% al SAT, 84% a SEMOVI). Si el costo es 0, la licencia es gratis.
+
+    ## Licencia Digital SEMOVI
+    Permite consultar identidad civil desde INE/Pasaporte, emitir licencias digitales y registrar pago o deuda.
   version: 1.0.0
 servers:
+  - url: https://api.egologic.cloud
+    description: Producción
   - url: http://localhost:3000
     description: Local
-  - url: https://api.example.com
-    description: Producción
 security:
   - ApiKeyAuth: []
 paths:
+  /v1/semovi/identity/{userId}:
+    get:
+      summary: Consultar identidad civil
+      description: Devuelve los datos civiles del usuario desde INE o Pasaporte, junto con la vinculación Roblox si existe.
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID numérico del usuario en Discord.
+          example: "123456789012345678"
+      responses:
+        "200":
+          description: Identidad encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SemoviIdentityResponse"
+        "401":
+          description: No autorizado. Falta el API Key.
+        "403":
+          description: Prohibido. API Key inválida.
+        "404":
+          description: El usuario no tiene INE ni Pasaporte registrado.
+        "500":
+          description: Error interno del servidor.
+  /v1/semovi/digital-licenses/{userId}:
+    get:
+      summary: Consultar licencia digital SEMOVI
+      description: Devuelve identidad civil y la licencia digital activa, si existe, para que el bot de SEMOVI genere su imagen.
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID numérico del usuario en Discord.
+          example: "123456789012345678"
+      responses:
+        "200":
+          description: Identidad y licencia consultadas correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SemoviIdentityResponse"
+                  - type: object
+                    properties:
+                      license:
+                        nullable: true
+                        allOf:
+                          - $ref: "#/components/schemas/SemoviDigitalLicense"
+        "401":
+          description: No autorizado. Falta el API Key.
+        "403":
+          description: Prohibido. API Key inválida.
+        "404":
+          description: El usuario no tiene INE ni Pasaporte registrado.
+        "500":
+          description: Error interno del servidor.
+  /v1/semovi/digital-licenses:
+    post:
+      summary: Emitir licencia digital SEMOVI
+      description: Crea una licencia digital SEMOVI. Puede ser gratis, pagada descontando saldo, o emitida como deuda.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SemoviDigitalLicenseRequest"
+      responses:
+        "201":
+          description: Licencia digital emitida.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SemoviIdentityResponse"
+                  - type: object
+                    properties:
+                      license:
+                        $ref: "#/components/schemas/SemoviDigitalLicense"
+        "400":
+          description: Petición incorrecta, modo de pago inválido o fondos insuficientes.
+        "401":
+          description: No autorizado. Falta el API Key.
+        "403":
+          description: Prohibido. API Key inválida.
+        "404":
+          description: El usuario no tiene INE/Pasaporte o no tiene economía para pago directo.
+        "500":
+          description: Error interno del servidor.
   /v1/semovi/licenses:
     post:
       summary: Asignar o remover licencia
@@ -89,3 +185,116 @@ components:
       in: header
       name: x-api-key
       description: REQUERIDO EN TODAS LAS PETICIONES.
+  schemas:
+    SemoviRobloxIdentity:
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+          example: "987654321"
+        username:
+          type: string
+          nullable: true
+          example: "RobloxUser"
+        verified:
+          type: boolean
+          example: true
+    SemoviCivilIdentity:
+      type: object
+      properties:
+        documentType:
+          type: string
+          enum: [ine, pasaporte]
+          example: ine
+        nombres:
+          type: string
+          example: Juan
+        apellidos:
+          type: string
+          example: Perez Hernandez
+        nacionalidad:
+          type: string
+          nullable: true
+          example: MEXICANA
+        curp:
+          type: string
+          nullable: true
+          example: PEHJ950515HDFRRN09
+    SemoviIdentityResponse:
+      type: object
+      properties:
+        discordId:
+          type: string
+          example: "123456789012345678"
+        roblox:
+          $ref: "#/components/schemas/SemoviRobloxIdentity"
+        identity:
+          $ref: "#/components/schemas/SemoviCivilIdentity"
+    SemoviDigitalLicense:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "665f00000000000000000000"
+        active:
+          type: boolean
+          example: true
+        type:
+          type: string
+          example: A
+        number:
+          type: string
+          example: SEMOVI-A-20260603-123456
+        issuedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        price:
+          type: number
+          example: 5000
+        paymentStatus:
+          type: string
+          enum: [free, paid, debt, cancelled]
+          example: debt
+        debtId:
+          type: string
+          nullable: true
+          example: "665f00000000000000000001"
+    SemoviDigitalLicenseRequest:
+      type: object
+      required:
+        - userId
+        - type
+      properties:
+        userId:
+          type: string
+          description: ID numérico del usuario en Discord.
+          example: "123456789012345678"
+        type:
+          type: string
+          description: Tipo de licencia que aparecerá en la imagen generada por SEMOVI.
+          example: A
+        price:
+          type: number
+          description: Precio de la licencia. Debe ser 0 si paymentMode es free.
+          default: 0
+          example: 5000
+        paymentMode:
+          type: string
+          enum: [free, paid, debt]
+          default: free
+          description: free no cobra, paid descuenta saldo, debt registra deuda.
+          example: debt
+        expiresInDays:
+          type: integer
+          minimum: 1
+          maximum: 3650
+          default: 365
+          example: 365
+        number:
+          type: string
+          description: Número opcional de licencia. Si se omite, la API genera uno.
+          example: SEMOVI-A-20260603-123456

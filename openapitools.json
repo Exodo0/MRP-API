@@ -2,6 +2,18 @@
   "$schema": "./node_modules/@openapitools/openapi-generator-cli/config.schema.json",
   "spaces": 2,
   "generator-cli": {
-    "version": "7.22.0"
+    "version": "7.22.0",
+    "generators": {
+      "markdown-docs": {
+        "generatorName": "markdown",
+        "inputSpec": "docs/openapi.yaml",
+        "output": "docs/markdown"
+      },
+      "html-docs": {
+        "generatorName": "html2",
+        "inputSpec": "docs/openapi.yaml",
+        "output": "docs/html"
+      }
+    }
   }
 }
