@@ -20,7 +20,18 @@ app.set("trust proxy", 1);
 app.use(express.static("public"));
 
 app.use(bodyParser.json({ verify: rawBodySaver }));
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://unpkg.com"],
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "connect-src": ["'self'"],
+      },
+    },
+  }),
+);
 app.use(cors());
 
 const limiter = rateLimit({ windowMs: 60 * 1000, max: 60 });
