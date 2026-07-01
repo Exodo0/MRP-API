@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const ticketConn = require("../dbTicket");
 
 const ticketSchema = new mongoose.Schema(
