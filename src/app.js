@@ -8,6 +8,7 @@ const marketRoutes = require("./routes/v1/market");
 const authRoutes = require("./routes/v1/auth");
 const dashboardRoutes = require("./routes/v1/dashboard");
 const webhookRoutes = require("./routes/v1/webhook");
+const ticketRoutes = require("./routes/v1/ticket");
 const apiKeyAuth = require("./middleware/auth");
 const marketUserAuth = require("./middleware/marketUserAuth");
 const rawBodySaver = require("./middleware/rawBody");
@@ -51,6 +52,7 @@ app.use("/v1/semovi", apiKeyAuth, semoviRoutes);
 app.use("/v1/market", apiKeyAuth, marketUserAuth, marketRoutes);
 app.use("/v1/dashboard", dashboardRoutes); // Dashboard — JWT auth
 app.use("/v1/webhook", webhookRoutes); // ER:LC Event Webhook
+app.use("/v1/tickets", apiKeyAuth, ticketRoutes);
 
 // Global error handler — captura errores que lleguen con next(err)
 app.use((err, req, res, next) => {
