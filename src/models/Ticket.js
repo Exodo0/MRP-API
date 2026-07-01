@@ -1,4 +1,4 @@
-const { mongoose } = require("../db");
+const webConn = require("../dbWebConn");
 
 const ticketSchema = new mongoose.Schema(
   {
@@ -21,4 +21,4 @@ ticketSchema.index({ Estado: 1, createdAt: -1 });
 ticketSchema.index({ StaffAsignado: 1, Estado: 1 });
 ticketSchema.index({ CreadorId: 1, createdAt: -1 });
 
-module.exports = mongoose.model("Ticket", ticketSchema);
+module.exports = webConn.model("Ticket", ticketSchema);

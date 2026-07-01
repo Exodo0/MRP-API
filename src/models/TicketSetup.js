@@ -1,4 +1,4 @@
-const { mongoose } = require("../db");
+const webConn = require("../dbWebConn");
 
 const ticketSetupSchema = new mongoose.Schema(
   {
@@ -18,4 +18,4 @@ const ticketSetupSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model("TicketSetup", ticketSetupSchema);
+module.exports = webConn.model("TicketSetup", ticketSetupSchema);
