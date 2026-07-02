@@ -12,6 +12,7 @@ const auditSchema = new mongoose.Schema(
   {
     GuildId: { type: String, required: true, index: true },
     Group: { type: String, required: true },
+    Action: { type: String, enum: ["create", "update", "delete"], default: "update" },
     Actor: { type: String, required: true },
     PreviousVersion: { type: Number, required: true },
     Version: { type: Number, required: true },

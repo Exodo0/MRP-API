@@ -4,20 +4,20 @@ const logger = require("../logger");
 const StaffPermisos = require("../models/StaffPermisos");
 const StaffPermissionAudit = require("../models/StaffPermissionAudit");
 
-const GROUPS = [
-  "high", "medium", "jornada_start", "jornada_admin", "AuditGlobal", "ban_manage",
-  "gulag", "economy_manage", "perfil_view", "notas_manage", "notas_view", "wip_manage",
-  "wip_add", "infracciones_manage", "economia", "ck", "ine", "tesoreria", "vinculacion",
-  "diseno", "diseño", "dev", "publicar_empresa", "publicar_legal",
-];
-
 const updateSchema = Joi.object({
   roleIds: Joi.array().items(Joi.string().pattern(/^\d{17,20}$/)).unique().required(),
   expectedVersion: Joi.number().integer().min(0).required(),
 });
+const groupMutationSchema = Joi.object({
+  name: Joi.string().trim().min(2).max(48).pattern(/^[\p{L}][\p{L}\p{N}_-]*$/u).required(),
+  expectedVersion: Joi.number().integer().min(0).required(),
+});
+const deleteSchema = Joi.object({
+  expectedVersion: Joi.number().integer().min(0).required(),
+});
 
 const getGuildId = () => process.env.GUILD_ID || DEFAULT_GUILD_ID;
-const isKnownGroup = (group) => GROUPS.includes(group);
+const isValidGroupName = (group) => /^[\p{L}][\p{L}\p{N}_-]{1,47}$/u.test(group);
 
 async function fetchDiscordRoles() {
   const token = process.env.DISCORD_TOKEN;
@@ -48,10 +48,31 @@ function groupRoles(document, group) {
   return document.Groups.get ? document.Groups.get(group) || [] : document.Groups[group] || [];
 }
 
+function groupNames(document) {
+  if (!document?.Groups) return [];
+  return document.Groups instanceof Map
+    ? [...document.Groups.keys()]
+    : Object.keys(document.Groups);
+}
+
+function hasGroup(document, group) {
+  return groupNames(document).includes(group);
+}
+
+function versionFilter(document, guildId, version) {
+  if (!document) return { GuildId: guildId, PermissionsVersion: version };
+  return {
+    _id: document._id,
+    ...(document.PermissionsVersion == null
+      ? { PermissionsVersion: { $exists: false } }
+      : { PermissionsVersion: version }),
+  };
+}
+
 async function listGroups(req, res) {
   try {
     const config = await StaffPermisos.findOne({ GuildId: getGuildId() }).lean();
-    const groups = GROUPS.map((name) => ({
+    const groups = groupNames(config).sort((a, b) => a.localeCompare(b, "es")).map((name) => ({
       name,
       selectedCount: groupRoles(config, name).length,
     }));
@@ -64,7 +85,7 @@ async function listGroups(req, res) {
 
 async function listGroupRoles(req, res) {
   const { group } = req.params;
-  if (!isKnownGroup(group)) return res.status(404).json({ error: "Unknown permission group" });
+  if (!isValidGroupName(group)) return res.status(400).json({ error: "Invalid permission group name" });
 
   const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
   const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 10, 1), 50);
@@ -74,6 +95,7 @@ async function listGroupRoles(req, res) {
       fetchDiscordRoles(),
       StaffPermisos.findOne({ GuildId: getGuildId() }).lean(),
     ]);
+    if (!hasGroup(config, group)) return res.status(404).json({ error: "Unknown permission group" });
     const saved = groupRoles(config, group);
     const selectedIds = new Set(saved.map((role) => role.roleId));
     const discordIds = new Set(discordRoles.map((role) => role.id));
@@ -103,7 +125,7 @@ async function listGroupRoles(req, res) {
 
 async function updateGroup(req, res) {
   const { group } = req.params;
-  if (!isKnownGroup(group)) return res.status(404).json({ error: "Unknown permission group" });
+  if (!isValidGroupName(group)) return res.status(400).json({ error: "Invalid permission group name" });
   const { error, value } = updateSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
 
@@ -117,6 +139,7 @@ async function updateGroup(req, res) {
     if (currentVersion !== value.expectedVersion) {
       return res.status(409).json({ error: "Configuration changed; refresh and try again", version: currentVersion });
     }
+    if (!hasGroup(current, group)) return res.status(404).json({ error: "Unknown permission group" });
 
     const existingRoles = groupRoles(current, group);
     const existingById = new Map(existingRoles.map((role) => [role.roleId, role]));
@@ -134,16 +157,8 @@ async function updateGroup(req, res) {
     const removed = existingRoles.filter((role) => !selectedIds.has(role.roleId));
     const nextVersion = currentVersion + 1;
 
-    const versionFilter = current
-      ? {
-          _id: current._id,
-          ...(current.PermissionsVersion == null
-            ? { PermissionsVersion: { $exists: false } }
-            : { PermissionsVersion: currentVersion }),
-        }
-      : { GuildId: guildId, PermissionsVersion: currentVersion };
     const updated = await StaffPermisos.findOneAndUpdate(
-      versionFilter,
+      versionFilter(current, guildId, currentVersion),
       { $set: { [`Groups.${group}`]: selected }, $inc: { PermissionsVersion: 1 } },
       { new: true, upsert: !current },
     );
@@ -152,6 +167,7 @@ async function updateGroup(req, res) {
     await StaffPermissionAudit.create({
       GuildId: guildId,
       Group: group,
+      Action: "update",
       Actor: req.apiKeyOwner || "API",
       PreviousVersion: currentVersion,
       Version: nextVersion,
@@ -163,6 +179,69 @@ async function updateGroup(req, res) {
     if (error?.code === 11000) return res.status(409).json({ error: "Configuration changed; refresh and try again" });
     logger.error({ err: error, group }, "update staff permission group error");
     return res.status(error.status || 500).json({ error: error.message || "Internal Server Error" });
+  }
+}
+
+async function createGroup(req, res) {
+  const { error, value } = groupMutationSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  try {
+    const guildId = getGuildId();
+    const current = await StaffPermisos.findOne({ GuildId: guildId });
+    const currentVersion = current?.PermissionsVersion || 0;
+    if (currentVersion !== value.expectedVersion) {
+      return res.status(409).json({ error: "Configuration changed; refresh and try again", version: currentVersion });
+    }
+    if (hasGroup(current, value.name)) return res.status(409).json({ error: "Permission group already exists" });
+
+    const updated = await StaffPermisos.findOneAndUpdate(
+      versionFilter(current, guildId, currentVersion),
+      { $set: { [`Groups.${value.name}`]: [] }, $inc: { PermissionsVersion: 1 } },
+      { new: true, upsert: !current },
+    );
+    if (!updated) return res.status(409).json({ error: "Configuration changed; refresh and try again" });
+    const nextVersion = currentVersion + 1;
+    await StaffPermissionAudit.create({
+      GuildId: guildId, Group: value.name, Action: "create",
+      Actor: req.apiKeyOwner || "API", PreviousVersion: currentVersion, Version: nextVersion,
+    });
+    return res.status(201).json({ ok: true, group: value.name, version: nextVersion });
+  } catch (error) {
+    if (error?.code === 11000) return res.status(409).json({ error: "Permission group already exists" });
+    logger.error({ err: error }, "create staff permission group error");
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+}
+
+async function deleteGroup(req, res) {
+  const { group } = req.params;
+  if (!isValidGroupName(group)) return res.status(400).json({ error: "Invalid permission group name" });
+  const { error, value } = deleteSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  try {
+    const guildId = getGuildId();
+    const current = await StaffPermisos.findOne({ GuildId: guildId });
+    const currentVersion = current?.PermissionsVersion || 0;
+    if (currentVersion !== value.expectedVersion) {
+      return res.status(409).json({ error: "Configuration changed; refresh and try again", version: currentVersion });
+    }
+    if (!hasGroup(current, group)) return res.status(404).json({ error: "Unknown permission group" });
+    const removed = groupRoles(current, group);
+    const updated = await StaffPermisos.findOneAndUpdate(
+      versionFilter(current, guildId, currentVersion),
+      { $unset: { [`Groups.${group}`]: 1 }, $inc: { PermissionsVersion: 1 } },
+      { new: true },
+    );
+    if (!updated) return res.status(409).json({ error: "Configuration changed; refresh and try again" });
+    const nextVersion = currentVersion + 1;
+    await StaffPermissionAudit.create({
+      GuildId: guildId, Group: group, Action: "delete", Actor: req.apiKeyOwner || "API",
+      PreviousVersion: currentVersion, Version: nextVersion, Removed: removed,
+    });
+    return res.json({ ok: true, group, version: nextVersion });
+  } catch (error) {
+    logger.error({ err: error, group }, "delete staff permission group error");
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }
 
@@ -180,4 +259,4 @@ async function listHistory(req, res) {
   }
 }
 
-module.exports = { GROUPS, listGroups, listGroupRoles, updateGroup, listHistory };
+module.exports = { listGroups, listGroupRoles, createGroup, updateGroup, deleteGroup, listHistory };
