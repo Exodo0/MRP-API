@@ -13,6 +13,7 @@ try {
 }
 
 const getGuildId = () => process.env.GUILD_ID || GUILD_ID;
+const actorName = (req) => req.cliUser ? `${req.cliUser.username} (${req.cliUser.discordId})` : req.apiKeyOwner || "API";
 
 // ── Discord.js client singleton (para transcripts) ────────────────────────────
 
@@ -179,6 +180,37 @@ const getTicketSetup = async (req, res) => {
   }
 };
 
+const getTicketCategories = async (req, res) => {
+  try {
+    const guildId = getGuildId();
+    const setup = await TicketSetup.findOne({ GuildId: guildId }).lean();
+    if (!setup) return res.status(404).json({ error: "No ticket setup found for this guild" });
+
+    const ignoredFields = new Set(["_id", "GuildId", "LogId", "createdAt", "updatedAt", "__v"]);
+    const categoryFields = Object.keys(TicketSetup.schema.paths).filter(
+      (field) => !ignoredFields.has(field) && TicketSetup.schema.paths[field].instance === "String",
+    );
+    const token = process.env.DISCORD_TOKEN;
+    const categories = await Promise.all(
+      categoryFields.filter((field) => setup[field]).map(async (field) => {
+        const category = { key: field, channelId: setup[field], channelName: null };
+        if (!token) return category;
+        try {
+          const discordRes = await fetch(`https://discord.com/api/v10/channels/${setup[field]}`, {
+            headers: { Authorization: `Bot ${token}` },
+          });
+          if (discordRes.ok) category.channelName = (await discordRes.json()).name;
+        } catch { /* El ID sigue siendo útil si Discord no responde. */ }
+        return category;
+      }),
+    );
+    return res.json({ guildId, categories });
+  } catch (err) {
+    logger.error({ err }, "getTicketCategories error");
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 const getTicketHistory = async (req, res) => {
   const { id } = req.params;
   if (!id) return res.status(400).json({ error: "Channel ID or Ticket ID is required" });
@@ -274,7 +306,7 @@ const closeTicket = async (req, res) => {
                   { name: "ID del Ticket", value: `\`${ticket.TicketId}\``, inline: true },
                   { name: "Canal", value: `\`${channel.name}\``, inline: true },
                   { name: "Razón", value: value.reason },
-                  { name: "Cerrado por", value: req.apiKeyOwner || "API", inline: true },
+                  { name: "Cerrado por", value: actorName(req), inline: true },
                   { name: "Atendido por", value: ticket.StaffAsignado ? `<@${ticket.StaffAsignado}>` : "Sin asignar", inline: true },
                   { name: "Usuario que Aperturó", value: ticket.CreadorId ? `<@${ticket.CreadorId}>` : "N/A", inline: true }
                 )
@@ -292,7 +324,7 @@ const closeTicket = async (req, res) => {
     // Actualizar DB
     await Ticket.updateOne(
       { _id: ticket._id },
-      { $set: { Estado: "cerrado", CerradoPor: req.apiKeyOwner || "API" } }
+      { $set: { Estado: "cerrado", CerradoPor: actorName(req) } }
     );
 
     // Eliminar canal si se pide
@@ -302,7 +334,7 @@ const closeTicket = async (req, res) => {
       channelDeleted = true;
     }
 
-    logger.info({ ticketId: ticket.TicketId, reason: value.reason, deletedBy: req.apiKeyOwner }, "Ticket closed");
+    logger.info({ ticketId: ticket.TicketId, reason: value.reason, deletedBy: actorName(req) }, "Ticket closed");
     return res.json({ ok: true, channelDeleted });
   } catch (err) {
     logger.error({ err, channelId }, "closeTicket error");
@@ -349,7 +381,7 @@ const deleteTicket = async (req, res) => {
 
     await Ticket.deleteOne({ _id: ticket._id });
 
-    logger.info({ ticketId: ticket.TicketId, deletedBy: req.apiKeyOwner }, "Ticket deleted");
+    logger.info({ ticketId: ticket.TicketId, deletedBy: actorName(req) }, "Ticket deleted");
     return res.json({ ok: true });
   } catch (err) {
     logger.error({ err, id }, "deleteTicket error");
@@ -383,7 +415,7 @@ const bulkDeleteTickets = async (req, res) => {
       deleted++;
     }
 
-    logger.info({ estado: value.estado, deleted, deletedBy: req.apiKeyOwner }, "Bulk ticket delete");
+    logger.info({ estado: value.estado, deleted, deletedBy: actorName(req) }, "Bulk ticket delete");
     return res.json({ ok: true, deleted });
   } catch (err) {
     logger.error({ err, estado: value?.estado }, "bulkDeleteTickets error");
@@ -395,6 +427,7 @@ module.exports = {
   listTickets,
   getTicketStats,
   getTicketSetup,
+  getTicketCategories,
   getTicketHistory,
   closeTicket,
   unclaimTicket,

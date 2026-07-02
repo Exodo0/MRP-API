@@ -4,6 +4,7 @@ const {
   listTickets,
   getTicketStats,
   getTicketSetup,
+  getTicketCategories,
   getTicketHistory,
   closeTicket,
   unclaimTicket,
@@ -14,6 +15,7 @@ const {
 router.get("/", listTickets);
 router.get("/stats", getTicketStats);
 router.get("/setup", getTicketSetup);
+router.get("/categories", getTicketCategories);
 router.get("/:id", getTicketHistory);
 router.post("/:channelId/close", closeTicket);
 router.post("/:channelId/unclaim", unclaimTicket);

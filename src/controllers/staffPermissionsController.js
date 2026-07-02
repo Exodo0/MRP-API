@@ -17,6 +17,7 @@ const deleteSchema = Joi.object({
 });
 
 const getGuildId = () => process.env.GUILD_ID || DEFAULT_GUILD_ID;
+const actorName = (req) => req.cliUser ? `${req.cliUser.username} (${req.cliUser.discordId})` : req.apiKeyOwner || "API";
 const isValidGroupName = (group) => /^[\p{L}][\p{L}\p{N}_-]{1,47}$/u.test(group);
 
 async function fetchDiscordRoles() {
@@ -168,7 +169,7 @@ async function updateGroup(req, res) {
       GuildId: guildId,
       Group: group,
       Action: "update",
-      Actor: req.apiKeyOwner || "API",
+      Actor: actorName(req),
       PreviousVersion: currentVersion,
       Version: nextVersion,
       Added: added,
@@ -203,7 +204,7 @@ async function createGroup(req, res) {
     const nextVersion = currentVersion + 1;
     await StaffPermissionAudit.create({
       GuildId: guildId, Group: value.name, Action: "create",
-      Actor: req.apiKeyOwner || "API", PreviousVersion: currentVersion, Version: nextVersion,
+      Actor: actorName(req), PreviousVersion: currentVersion, Version: nextVersion,
     });
     return res.status(201).json({ ok: true, group: value.name, version: nextVersion });
   } catch (error) {
@@ -235,7 +236,7 @@ async function deleteGroup(req, res) {
     if (!updated) return res.status(409).json({ error: "Configuration changed; refresh and try again" });
     const nextVersion = currentVersion + 1;
     await StaffPermissionAudit.create({
-      GuildId: guildId, Group: group, Action: "delete", Actor: req.apiKeyOwner || "API",
+      GuildId: guildId, Group: group, Action: "delete", Actor: actorName(req),
       PreviousVersion: currentVersion, Version: nextVersion, Removed: removed,
     });
     return res.json({ ok: true, group, version: nextVersion });

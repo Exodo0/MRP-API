@@ -7,7 +7,7 @@
     "start": "node index.js",
     "create-key": "node scripts/create-key.js",
     "create-user": "node scripts/create-user.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
