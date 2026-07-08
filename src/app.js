@@ -11,8 +11,11 @@ const webhookRoutes = require("./routes/v1/webhook");
 const ticketRoutes = require("./routes/v1/ticket");
 const staffPermissionsRoutes = require("./routes/v1/staffPermissions");
 const cliAuthRoutes = require("./routes/v1/cliAuth");
+const recordsRoutes = require("./routes/v1/records");
+const adminRoutes = require("./routes/v1/admin");
 const apiKeyAuth = require("./middleware/auth");
 const cliAuth = require("./middleware/cliAuth");
+const adminAuth = require("./middleware/adminAuth");
 const marketUserAuth = require("./middleware/marketUserAuth");
 const rawBodySaver = require("./middleware/rawBody");
 const logger = require("./logger");
@@ -58,6 +61,8 @@ app.use("/v1/dashboard", dashboardRoutes); // Dashboard — JWT auth
 app.use("/v1/webhook", webhookRoutes); // ER:LC Event Webhook
 app.use("/v1/tickets", apiKeyAuth, cliAuth, ticketRoutes);
 app.use("/v1/staff-permissions", apiKeyAuth, cliAuth, staffPermissionsRoutes);
+app.use("/v1/records", apiKeyAuth, recordsRoutes);
+app.use("/v1/admin", adminAuth, adminRoutes);
 
 // Global error handler — captura errores que lleguen con next(err)
 app.use((err, req, res, next) => {
