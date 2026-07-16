@@ -8,11 +8,16 @@ function verifyToken(token) {
   const [payloadB64, signature] = String(token || "").split(".");
   if (!payloadB64 || !signature) return null;
 
-  const expected = crypto.createHmac("sha256", secret).update(payloadB64).digest("base64url");
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(payloadB64)
+    .digest("base64url");
   if (expected !== signature) return null;
 
   try {
-    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8"));
+    const payload = JSON.parse(
+      Buffer.from(payloadB64, "base64url").toString("utf8"),
+    );
     if (!payload?.username) return null;
     return payload;
   } catch {
@@ -20,7 +25,7 @@ function verifyToken(token) {
   }
 }
 
-async function marketUserAuth(req, _res, next) {
+async function marketUserAuth(req, res, next) {
   req.marketActor = {
     username: null,
     source: "apiKey",
@@ -30,12 +35,13 @@ async function marketUserAuth(req, _res, next) {
 
   const authHeader = req.header("authorization") || "";
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (!match) return next();
+  if (!match)
+    return res.status(401).json({ error: "Market user token required" });
 
   const payload = verifyToken(match[1]);
   if (!payload?.username) {
     logger.warn({ ip: req.ip }, "Rejected invalid market user token");
-    return next();
+    return res.status(401).json({ error: "Invalid market user token" });
   }
 
   try {
@@ -46,8 +52,11 @@ async function marketUserAuth(req, _res, next) {
     }).lean();
 
     if (!user) {
-      logger.warn({ username: payload.username, ip: req.ip }, "Rejected market user token for inactive or missing user");
-      return next();
+      logger.warn(
+        { username: payload.username, ip: req.ip },
+        "Rejected market user token for inactive or missing user",
+      );
+      return res.status(403).json({ error: "Inactive market user" });
     }
 
     req.marketActor = {
@@ -58,9 +67,10 @@ async function marketUserAuth(req, _res, next) {
     };
   } catch (err) {
     logger.error({ err }, "marketUserAuth error");
+    return res.status(503).json({ error: "Market authorization unavailable" });
   }
 
-  next();
+  return next();
 }
 
 module.exports = marketUserAuth;

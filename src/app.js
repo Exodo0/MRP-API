@@ -13,6 +13,7 @@ const staffPermissionsRoutes = require("./routes/v1/staffPermissions");
 const cliAuthRoutes = require("./routes/v1/cliAuth");
 const recordsRoutes = require("./routes/v1/records");
 const adminRoutes = require("./routes/v1/admin");
+const storeAdminRoutes = require("./routes/v1/storeAdmin");
 const apiKeyAuth = require("./middleware/auth");
 const cliAuth = require("./middleware/cliAuth");
 const adminAuth = require("./middleware/adminAuth");
@@ -32,7 +33,12 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://unpkg.com"],
+        "script-src": [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          "https://unpkg.com",
+        ],
         "style-src": ["'self'", "'unsafe-inline'"],
         "connect-src": ["'self'"],
       },
@@ -63,9 +69,10 @@ app.use("/v1/tickets", apiKeyAuth, cliAuth, ticketRoutes);
 app.use("/v1/staff-permissions", apiKeyAuth, cliAuth, staffPermissionsRoutes);
 app.use("/v1/records", apiKeyAuth, recordsRoutes);
 app.use("/v1/admin", adminAuth, adminRoutes);
+app.use("/v1/store-admin", apiKeyAuth, cliAuth, storeAdminRoutes);
 
 // Global error handler — captura errores que lleguen con next(err)
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   logger.error({ err, method: req.method, url: req.url }, "Unhandled error");
   res.status(500).json({ error: "Internal Server Error" });
 });

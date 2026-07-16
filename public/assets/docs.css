@@ -613,6 +613,54 @@ h1 {
   padding: 0 clamp(22px, 4vw, 54px) 34px;
 }
 
+.flow-diagram {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.flow-step {
+  flex: 1;
+  min-width: 180px;
+  border: 1px solid var(--subtle);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 16px;
+}
+
+.flow-number {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.flow-content h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.flow-content p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.flow-arrow {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 20px;
+  padding-top: 20px;
+}
+
 @media (max-width: 1020px) {
   .layout {
     display: block;

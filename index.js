@@ -7,8 +7,8 @@ dotenv.config();
 const logger = require("./src/logger");
 const app = require("./src/app");
 const { connectDB } = require("./src/db");
+const { connectWebDb } = require("./src/dbWebConn");
 const { initWebhookKey } = require("./src/controllers/webhookController");
-require("./src/dbWebConn"); // inicia la conexión MXRP-Web al arrancar
 
 const PORT = process.env.PORT || 3000;
 
@@ -16,10 +16,13 @@ const start = async () => {
   // 1. Connect to MongoDB
   await connectDB();
 
-  // 2. Load ER:LC webhook public key
+  // 2. Connect explicitly to the economy/store database.
+  await connectWebDb();
+
+  // 3. Load ER:LC webhook public key
   await initWebhookKey();
 
-  // 3. Start Express Server
+  // 4. Start Express Server
   app.listen(PORT, () => {
     logger.info({ port: PORT }, "Server is running");
   });

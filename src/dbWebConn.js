@@ -1,23 +1,35 @@
-require("dotenv").config();
 const mongoose = require("mongoose");
-const logger   = require("./logger");
-
-const uri    = process.env.MONGO_URI_WEB;
-const dbName = process.env.MONGO_DB_WEB_NAME || "MXRP";
-
-if (!uri) {
-  logger.error("MONGO_URI_WEB is not set — /v1/market endpoints will fail. Configure MONGO_URI_WEB in the deploy environment.");
-}
+const logger = require("./logger");
 
 // Conexión dedicada para la DB de MXRP (market/tienda).
-// Separada de DATABASE_URL (MXRPAPI) para no mezclar bases de datos.
-const webConn = mongoose.createConnection(uri || "mongodb://127.0.0.1/noop", {
-  dbName,
-  serverSelectionTimeoutMS: 5000,
-});
+// Se crea desconectada: importar modelos, ejecutar lint o pruebas nunca debe abrir red.
+const webConn = mongoose.createConnection();
+let connectionPromise = null;
 
-webConn.on("connected",    () => logger.info("MongoDB MXRP-Web connected"));
-webConn.on("error",   (err) => logger.error({ err }, "MongoDB MXRP-Web error"));
+async function connectWebDb() {
+  if (webConn.readyState === 1) return webConn;
+  if (connectionPromise) return connectionPromise;
+
+  const uri = process.env.MONGO_URI_WEB;
+  if (!uri) throw new Error("MONGO_URI_WEB is not set");
+
+  connectionPromise = webConn
+    .openUri(uri, {
+      dbName: process.env.MONGO_DB_WEB_NAME || "MXRP",
+      serverSelectionTimeoutMS: 5000,
+      autoIndex: process.env.NODE_ENV !== "production",
+    })
+    .then(() => webConn)
+    .catch((error) => {
+      connectionPromise = null;
+      throw error;
+    });
+  return connectionPromise;
+}
+
+webConn.on("connected", () => logger.info("MongoDB MXRP-Web connected"));
+webConn.on("error", (err) => logger.error({ err }, "MongoDB MXRP-Web error"));
 webConn.on("disconnected", () => logger.warn("MongoDB MXRP-Web disconnected"));
 
 module.exports = webConn;
+module.exports.connectWebDb = connectWebDb;

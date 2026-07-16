@@ -28,6 +28,21 @@ const EconomyUserSchema = new mongoose.Schema(
       USD: { type: Number, default: 0, min: 0 },
       BTC: { type: Number, default: 0, min: 0 },
     },
+    DivisasUnits: {
+      USD: { type: Number, min: 0 },
+      BTC: { type: Number, min: 0 },
+    },
+    FxControl: {
+      DayKey: { type: String, default: null },
+      TotalMxn: { type: Number, default: 0, min: 0 },
+      USDMxn: { type: Number, default: 0, min: 0 },
+      BTCMxn: { type: Number, default: 0, min: 0 },
+      TotalMxnCents: { type: Number, default: 0, min: 0 },
+      USDMxnCents: { type: Number, default: 0, min: 0 },
+      BTCMxnCents: { type: Number, default: 0, min: 0 },
+      TransactionCount: { type: Number, default: 0, min: 0 },
+      LastTradeAt: { type: Date, default: null },
+    },
 
     // ── SAT (cuenta recaudadora del gobierno) ────────────
     Sat: { type: Boolean, default: false },

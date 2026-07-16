@@ -6,6 +6,7 @@ const AuditLog = require("../models/AuditLog");
 const logger = require("../logger");
 const { uploadMarketImage } = require("../services/marketImageService");
 const { writeAuditLog } = require("../services/auditService");
+const { parseMoneyToCents } = require("../utils/money");
 
 function getGuildId() {
   const id = process.env.GUILD_ID;
@@ -20,7 +21,9 @@ function isValidObjectId(id) {
 function handleEnvError(err, res) {
   if (err.message?.includes("GUILD_ID env var")) {
     logger.error(err.message);
-    return res.status(503).json({ error: "Server misconfiguration: GUILD_ID not set" });
+    return res
+      .status(503)
+      .json({ error: "Server misconfiguration: GUILD_ID not set" });
   }
   return null;
 }
@@ -69,16 +72,33 @@ const itemUpdateSchema = Joi.object({
   Activo: Joi.boolean().optional(),
 }).min(1);
 
-const reorderSchema = Joi.array().items(Joi.string().required()).min(1).required();
+const reorderSchema = Joi.array()
+  .items(Joi.string().required())
+  .min(1)
+  .required();
 
 const uploadImageQuerySchema = Joi.object({
   categoriaId: Joi.string().required(),
 });
 
+function normalizedMonetaryFields(value) {
+  const normalized = { ...value };
+  if (Object.hasOwn(value, "Precio")) {
+    normalized.PrecioCents = parseMoneyToCents(value.Precio);
+    normalized.MoneyVersion = 2;
+  }
+  if (Object.hasOwn(value, "Descuento")) {
+    normalized.DiscountBasisPoints = parseMoneyToCents(value.Descuento);
+  }
+  return normalized;
+}
+
 const auditListSchema = Joi.object({
   entityType: Joi.string().valid("categoria", "item").optional(),
   entityId: Joi.string().optional(),
-  action: Joi.string().valid("create", "update", "delete", "toggle", "reorder").optional(),
+  action: Joi.string()
+    .valid("create", "update", "delete", "toggle", "reorder")
+    .optional(),
   limit: Joi.number().integer().min(1).max(200).default(50),
 });
 
@@ -93,7 +113,10 @@ const listAuditLogs = async (req, res) => {
     if (value.entityId) query.entityId = value.entityId;
     if (value.action) query.action = value.action;
 
-    const logs = await AuditLog.find(query).sort({ createdAt: -1 }).limit(value.limit).lean();
+    const logs = await AuditLog.find(query)
+      .sort({ createdAt: -1 })
+      .limit(value.limit)
+      .lean();
     return res.json(logs);
   } catch (err) {
     if (handleEnvError(err, res)) return;
@@ -151,20 +174,25 @@ const createCategoria = async (req, res) => {
 
 const updateCategoria = async (req, res) => {
   const { id } = req.params;
-  if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid categoria ID" });
+  if (!isValidObjectId(id))
+    return res.status(400).json({ error: "Invalid categoria ID" });
 
   const { error, value } = categoriaUpdateSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
 
   try {
     const GUILD_ID = getGuildId();
-    const existing = await Categoria.findOne({ _id: id, GuildId: GUILD_ID }).lean();
-    if (!existing) return res.status(404).json({ error: "Categoria not found" });
+    const existing = await Categoria.findOne({
+      _id: id,
+      GuildId: GUILD_ID,
+    }).lean();
+    if (!existing)
+      return res.status(404).json({ error: "Categoria not found" });
 
     const cat = await Categoria.findOneAndUpdate(
       { _id: id, GuildId: GUILD_ID },
       { $set: value },
-      { new: true, lean: true }
+      { new: true, lean: true },
     );
 
     await writeAuditLog({
@@ -188,7 +216,8 @@ const updateCategoria = async (req, res) => {
 
 const toggleCategoria = async (req, res) => {
   const { id } = req.params;
-  if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid categoria ID" });
+  if (!isValidObjectId(id))
+    return res.status(400).json({ error: "Invalid categoria ID" });
 
   try {
     const GUILD_ID = getGuildId();
@@ -198,7 +227,7 @@ const toggleCategoria = async (req, res) => {
     const updated = await Categoria.findByIdAndUpdate(
       id,
       { $set: { Activa: !cat.Activa } },
-      { new: true, lean: true }
+      { new: true, lean: true },
     );
 
     await writeAuditLog({
@@ -222,14 +251,18 @@ const toggleCategoria = async (req, res) => {
 
 const deleteCategoria = async (req, res) => {
   const { id } = req.params;
-  if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid categoria ID" });
+  if (!isValidObjectId(id))
+    return res.status(400).json({ error: "Invalid categoria ID" });
 
   try {
     const GUILD_ID = getGuildId();
     const cat = await Categoria.findOne({ _id: id, GuildId: GUILD_ID }).lean();
     if (!cat) return res.status(404).json({ error: "Categoria not found" });
 
-    const deletedItems = await Item.countDocuments({ CategoriaId: id, GuildId: GUILD_ID });
+    const deletedItems = await Item.countDocuments({
+      CategoriaId: id,
+      GuildId: GUILD_ID,
+    });
     await Item.deleteMany({ CategoriaId: id, GuildId: GUILD_ID });
     await Categoria.findByIdAndDelete(id);
 
@@ -262,7 +295,7 @@ const reorderCategorias = async (req, res) => {
       if (!isValidObjectId(id)) throw new Error(`Invalid ID: ${id}`);
       return Categoria.findOneAndUpdate(
         { _id: id, GuildId: GUILD_ID },
-        { $set: { Orden: idx } }
+        { $set: { Orden: idx } },
       );
     });
 
@@ -302,7 +335,9 @@ const listItems = async (req, res) => {
       query.Activo = req.query.activo === "true";
     }
 
-    const items = await Item.find(query).sort({ CategoriaNombre: 1, Nombre: 1 }).lean();
+    const items = await Item.find(query)
+      .sort({ CategoriaNombre: 1, Nombre: 1 })
+      .lean();
     return res.json(items);
   } catch (err) {
     if (handleEnvError(err, res)) return;
@@ -325,7 +360,10 @@ const uploadItemImage = async (req, res) => {
 
   try {
     const GUILD_ID = getGuildId();
-    const cat = await Categoria.findOne({ _id: value.categoriaId, GuildId: GUILD_ID }).lean();
+    const cat = await Categoria.findOne({
+      _id: value.categoriaId,
+      GuildId: GUILD_ID,
+    }).lean();
     if (!cat) return res.status(404).json({ error: "Categoria not found" });
 
     const uploaded = await uploadMarketImage({
@@ -334,13 +372,18 @@ const uploadItemImage = async (req, res) => {
       contentType: req.headers["content-type"] || "image/webp",
     });
 
-    logger.info({ categoriaId: value.categoriaId, path: uploaded.path }, "Item image uploaded");
+    logger.info(
+      { categoriaId: value.categoriaId, path: uploaded.path },
+      "Item image uploaded",
+    );
     return res.status(201).json(uploaded);
   } catch (err) {
     if (handleEnvError(err, res)) return;
     if (err.message?.includes("Supabase storage env vars")) {
       logger.error({ err }, "uploadItemImage misconfiguration");
-      return res.status(503).json({ error: "Server misconfiguration: storage not set" });
+      return res
+        .status(503)
+        .json({ error: "Server misconfiguration: storage not set" });
     }
     logger.error({ err }, "uploadItemImage error");
     return res.status(500).json({ error: "Internal Server Error" });
@@ -357,11 +400,14 @@ const createItem = async (req, res) => {
 
   try {
     const GUILD_ID = getGuildId();
-    const cat = await Categoria.findOne({ _id: value.CategoriaId, GuildId: GUILD_ID }).lean();
+    const cat = await Categoria.findOne({
+      _id: value.CategoriaId,
+      GuildId: GUILD_ID,
+    }).lean();
     if (!cat) return res.status(404).json({ error: "Categoria not found" });
 
     const item = await Item.create({
-      ...value,
+      ...normalizedMonetaryFields(value),
       GuildId: GUILD_ID,
       CategoriaNombre: cat.Nombre,
       RolId: value.RolId || null,
@@ -388,7 +434,8 @@ const createItem = async (req, res) => {
 
 const updateItem = async (req, res) => {
   const { id } = req.params;
-  if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid item ID" });
+  if (!isValidObjectId(id))
+    return res.status(400).json({ error: "Invalid item ID" });
 
   const { error, value } = itemUpdateSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
@@ -398,19 +445,26 @@ const updateItem = async (req, res) => {
     const existing = await Item.findOne({ _id: id, GuildId: GUILD_ID }).lean();
     if (!existing) return res.status(404).json({ error: "Item not found" });
 
-    if (value.CategoriaId && value.CategoriaId !== existing.CategoriaId?.toString()) {
+    if (
+      value.CategoriaId &&
+      value.CategoriaId !== existing.CategoriaId?.toString()
+    ) {
       if (!isValidObjectId(value.CategoriaId)) {
         return res.status(400).json({ error: "Invalid CategoriaId" });
       }
-      const newCat = await Categoria.findOne({ _id: value.CategoriaId, GuildId: GUILD_ID }).lean();
-      if (!newCat) return res.status(404).json({ error: "New Categoria not found" });
+      const newCat = await Categoria.findOne({
+        _id: value.CategoriaId,
+        GuildId: GUILD_ID,
+      }).lean();
+      if (!newCat)
+        return res.status(404).json({ error: "New Categoria not found" });
       value.CategoriaNombre = newCat.Nombre;
     }
 
-    const updated = await Item.findByIdAndUpdate(
-      id,
-      { $set: value },
-      { new: true, lean: true }
+    const updated = await Item.findOneAndUpdate(
+      { _id: id, GuildId: GUILD_ID },
+      { $set: normalizedMonetaryFields(value) },
+      { new: true, lean: true },
     );
 
     await writeAuditLog({
@@ -434,7 +488,8 @@ const updateItem = async (req, res) => {
 
 const toggleItem = async (req, res) => {
   const { id } = req.params;
-  if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid item ID" });
+  if (!isValidObjectId(id))
+    return res.status(400).json({ error: "Invalid item ID" });
 
   try {
     const GUILD_ID = getGuildId();
@@ -444,7 +499,7 @@ const toggleItem = async (req, res) => {
     const updated = await Item.findByIdAndUpdate(
       id,
       { $set: { Activo: !item.Activo } },
-      { new: true, lean: true }
+      { new: true, lean: true },
     );
 
     await writeAuditLog({
@@ -468,7 +523,8 @@ const toggleItem = async (req, res) => {
 
 const deleteItem = async (req, res) => {
   const { id } = req.params;
-  if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid item ID" });
+  if (!isValidObjectId(id))
+    return res.status(400).json({ error: "Invalid item ID" });
 
   try {
     const GUILD_ID = getGuildId();
